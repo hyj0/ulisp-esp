@@ -1,9 +1,11 @@
+#include <BleKeyboard.h>
+
 /* uLisp ESP Release 4.4b - www.ulisp.com
    David Johnson-Davies - www.technoblogy.com - 31st March 2023
 
    Licensed under the MIT license: https://opensource.org/licenses/MIT
 */
-
+#define extensions
 // Lisp Library
 const char LispLibrary[] PROGMEM = "";
 
@@ -4758,6 +4760,141 @@ object *fn_pinmode (object *args, object *env) {
   return nil;
 }
 
+
+void SerialPrintInt(int n) {
+  char str[20];
+  memset(str, 0, sizeof(str));
+  Serial.println(itoa(n, str, 10));
+}
+
+int test_cfun(int n, char c) {
+    printf("call %s %d %d\n", __FUNCTION__ , n, c);
+    return 100;
+}
+void test_cfun1( char c, float f) {
+    printf("call %s %d %f\n", __FUNCTION__ , c, f);
+}
+
+class TestClass {
+public:
+    TestClass(){
+        printf("%s\n", __FUNCTION__ );
+    }
+    int foo(int n, char c){
+        printf("%s %d %d\n", n, c);
+        return n;
+    }
+};
+
+TestClass testClass;
+
+// int TestClass_foo(TestClass *t, int n, char c){
+//     return t->foo(n, c);
+// }
+
+void *__get_value(object *o){
+    if (keywordp(o)) {
+        return reinterpret_cast<void *>(checkkeyword(o));
+    } else if (integerp(o)) {
+        return reinterpret_cast<void*>(checkinteger(o));
+    } else if (characterp(o)) {
+        return reinterpret_cast<void *>(checkchar(o));
+    } else {
+        /*
+         * floatp(o)
+         */
+        printf("%s err type=%d", __FUNCTION__ , o->type);
+        error("type not support type", o);
+        return NULL;
+    }
+    return NULL;
+}
+
+void *get_value(object *o){
+    void *ret = __get_value(o);
+    printf("%s value=%d\n", __FUNCTION__, ret);
+    return ret;
+}
+
+object *my_nth(object *o, int idx){
+    object *ret = o;
+    for (int i = 0; i < idx; ++i) {
+        ret = cdr(ret);
+    }
+    return car(ret);
+}
+
+uint32_t (*pFun0)();
+uint32_t (*pFun1)(void *);
+uint32_t (*pFun2)(void *, void *);
+uint32_t (*pFun3)(void *, void *, void *);
+uint32_t (*pFun4)(void *, void *, void *, void *);
+uint32_t (*pFun5)(void *, void *, void *, void *, void *);
+
+#define cf_arg1 get_value(first(fun_args))
+#define cf_arg2 cf_arg1,get_value(second(fun_args))
+#define cf_arg3 cf_arg2,get_value(third(fun_args))
+#define cf_arg4 cf_arg3,get_value(my_nth(fun_args, 3))
+#define cf_arg5 cf_arg4,get_value(my_nth(fun_args, 4))
+/*
+ * call c function
+ * (call-c-fun address [arg0 arg1 arg2])
+ */
+object *fn_call_c_fun (object *args, object *env) {
+  (void) env; void *pAddr;
+
+  object *arg = first(args);
+  if (checkinteger(arg)) {
+      pAddr = reinterpret_cast<void *>(checkinteger(arg));
+  } else {
+      return nil;
+  }
+  uint32_t ret;
+  object *fun_args = cdr(args);
+  int arg_len = listlength(cdr(args));
+  printf("addr=%d arg_len=%d\n", pAddr, arg_len);
+    switch (arg_len) {
+        case 0: {
+            pFun0 = reinterpret_cast<uint32_t (*)()>(pAddr);
+            ret = pFun0();
+            return number(ret);
+        }
+        case 1: {
+            pFun1 = reinterpret_cast<uint32_t (*)(void *)>(pAddr);
+            ret = pFun1(cf_arg1);
+            return number(ret);
+            break;
+        }
+        case 2: {
+            pFun2 = reinterpret_cast<uint32_t (*)(void *, void *)>(pAddr);
+            ret = pFun2(cf_arg2);
+            return number(ret);
+            break;
+        }
+        case 3: {
+            pFun3 = reinterpret_cast<uint32_t (*)(void *, void *, void *)>(pAddr);
+            ret = pFun3(cf_arg3);
+            return number(ret);
+            break;
+        }
+        case 4: {
+            pFun4 = reinterpret_cast<uint32_t (*)(void *, void *, void *, void *)>(pAddr);
+            ret = pFun4(cf_arg4);
+            return number(ret);
+        }
+        case 5: {
+            pFun5 = reinterpret_cast<uint32_t (*)(void *, void *, void *, void *, void *)>(pAddr);
+            ret = pFun5(cf_arg5);
+            return number(ret);
+        }
+        default:
+            SerialPrintInt(arg_len);
+            error(toomanyargs, args);
+            return nil;
+    }
+  return nil;
+}
+
 /*
   (digitalread pin)
   Reads the state of the specified Arduino pin number and returns t (high) or nil (low).
@@ -5706,6 +5843,7 @@ const char string20[] PROGMEM = "nth";
 const char string21[] PROGMEM = "aref";
 const char string22[] PROGMEM = "string";
 const char string23[] PROGMEM = "pinmode";
+const char string23x[] PROGMEM = "call-c-fun";
 const char string24[] PROGMEM = "digitalwrite";
 const char string25[] PROGMEM = "analogread";
 const char string26[] PROGMEM = "register";
@@ -5960,6 +6098,8 @@ const char doc22[] PROGMEM = "(string item)\n"
 const char doc23[] PROGMEM = "(pinmode pin mode)\n"
 "Sets the input/output mode of an Arduino pin number, and returns nil.\n"
 "The mode parameter can be an integer, a keyword, or t or nil.";
+const char doc23x[] PROGMEM = "(call-c-fun address arg0 arg1 ...)\n"
+"call a c function at address with args";
 const char doc24[] PROGMEM = "(digitalwrite pin state)\n"
 "Sets the state of the specified Arduino pin number.";
 const char doc25[] PROGMEM = "(analogread pin)\n"
@@ -6468,6 +6608,7 @@ const tbl_entry_t lookup_table[] PROGMEM = {
   { string21, fn_aref, 0227, doc21 },
   { string22, fn_stringfn, 0211, doc22 },
   { string23, fn_pinmode, 0222, doc23 },
+  { string23x, fn_call_c_fun, 0x8F, doc23x }, /* fn 0 7 */
   { string24, fn_digitalwrite, 0222, doc24 },
   { string25, fn_analogread, 0211, doc25 },
   { string26, fn_register, 0212, doc26 },
@@ -7582,13 +7723,23 @@ void initgfx () {
 
 // Entry point from the Arduino IDE
 void setup () {
-  Serial.begin(9600);
+  Serial.begin(115200);
   int start = millis();
   while ((millis() - start) < 5000) { if (Serial) break; }
   initworkspace();
   initenv();
   initsleep();
   initgfx();
+
+  printf("(defvar pinMode %d)\n", &pinMode);
+  printf("(defvar digitalWrite %d)\n", &digitalWrite);
+  printf("(defvar test_cfun %d)\n", &test_cfun);
+  printf("(defvar test_cfun1 %d)\n", &test_cfun1);
+  printf("(defvar testClass %d)\n", &testClass);
+//    printf("(testClass.foo %d)\n", &TestClass::foo);
+    // printf("(TestClass_foo %d)\n", &TestClass_foo);
+    printf("(defvar markUse %d)\n", &markUse);
+
   pfstring(PSTR("uLisp 4.4b "), pserial); pln(pserial);
 }
 

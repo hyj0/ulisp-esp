@@ -1,6 +1,34 @@
 /*
  User Extensions
 */
+#include <BleKeyboard.h>
+BleKeyboard bleKeyboard;
+
+void BleKeyboard_begin(BleKeyboard *b) {
+    b->begin();
+}
+void BleKeyboard_end(BleKeyboard *b) {
+    b->end();
+}
+bool BleKeyboard_isConnected(BleKeyboard *b){
+    return b->isConnected();
+}
+size_t BleKeyboard_press(BleKeyboard *b, int key){
+    return b->press(key);
+}
+
+size_t BleKeyboard_release(BleKeyboard *b, int key) {
+    return b->release(key);
+}
+
+
+void markUse(){
+    printf("(defvar %s %d)\n", "BleKeyboard_begin", &BleKeyboard_begin);
+    printf("(defvar %s %d)\n", "BleKeyboard_end", &BleKeyboard_end);
+    printf("(defvar %s %d)\n", "BleKeyboard_isConnected", &BleKeyboard_isConnected);
+    printf("(defvar %s %d)\n", "BleKeyboard_press", &BleKeyboard_press);
+    printf("(defvar %s %d)\n", "BleKeyboard_release", &BleKeyboard_release);
+}
 
 // Definitions
 object *fn_now (object *args, object *env) {
@@ -14,7 +42,7 @@ object *fn_now (object *args, object *env) {
     Offset = (unsigned long)((checkinteger(first(args))*60 + checkinteger(second(args)))*60
       + checkinteger(third(args)) - now);
   } else if (nargs > 0) error2(PSTR("wrong number of arguments"));
-  
+
   // Return time
   unsigned long secs = Offset + now;
   object *seconds = number(secs%60);
