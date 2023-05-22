@@ -1,11 +1,13 @@
-#include <BleKeyboard.h>
+//#include <BleKeyboard.h>
 
 /* uLisp ESP Release 4.4b - www.ulisp.com
    David Johnson-Davies - www.technoblogy.com - 31st March 2023
 
    Licensed under the MIT license: https://opensource.org/licenses/MIT
 */
-#define extensions
+#include "ulisp-esp-comments.h"
+
+//#define extensions
 // Lisp Library
 const char LispLibrary[] PROGMEM = "";
 
@@ -25,10 +27,10 @@ const char LispLibrary[] PROGMEM = "";
 
 // #include "LispLibrary.h"
 #include <setjmp.h>
-#include <SPI.h>
-#include <Wire.h>
+//#include <SPI.h>
+//#include <Wire.h>
 #include <limits.h>
-#include <EEPROM.h>
+//#include <EEPROM.h>
 #if defined (ESP8266)
   #include <ESP8266WiFi.h>
 #elif defined (ESP32)
@@ -127,9 +129,9 @@ Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, MOSI, SCK, TFT_RST);
 
 #elif defined(ARDUINO_ESP32C3_DEV)
   #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
-  #define LITTLEFS
-  #include "FS.h"
-  #include <LittleFS.h>
+//  #define LITTLEFS
+//  #include "FS.h"
+//  #include <LittleFS.h>
   #define SDCARD_SS_PIN 13
   #define LED_BUILTIN 13
 
@@ -195,65 +197,6 @@ Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, MOSI, SCK, TFT_RST);
 #define BUILTINS           0xF4240000
 #define ENDFUNCTIONS       1536
 
-// Constants
-
-const int TRACEMAX = 3; // Number of traced functions
-enum type { ZZERO=0, SYMBOL=2, CODE=4, NUMBER=6, STREAM=8, CHARACTER=10, FLOAT=12, ARRAY=14, STRING=16, PAIR=18 };  // ARRAY STRING and PAIR must be last
-enum token { UNUSED, BRA, KET, QUO, DOT };
-enum stream { SERIALSTREAM, I2CSTREAM, SPISTREAM, SDSTREAM, WIFISTREAM, STRINGSTREAM, GFXSTREAM };
-enum fntypes_t { OTHER_FORMS, TAIL_FORMS, FUNCTIONS, SPECIAL_FORMS };
-
-// Stream names used by printobject
-const char serialstream[] PROGMEM = "serial";
-const char i2cstream[] PROGMEM = "i2c";
-const char spistream[] PROGMEM = "spi";
-const char sdstream[] PROGMEM = "sd";
-const char wifistream[] PROGMEM = "wifi";
-const char stringstream[] PROGMEM = "string";
-const char gfxstream[] PROGMEM = "gfx";
-PGM_P const streamname[] PROGMEM = {serialstream, i2cstream, spistream, sdstream, wifistream, stringstream, gfxstream};
-
-// Typedefs
-
-typedef uint32_t symbol_t;
-
-typedef struct sobject {
-  union {
-    struct {
-      sobject *car;
-      sobject *cdr;
-    };
-    struct {
-      unsigned int type;
-      union {
-        symbol_t name;
-        int integer;
-        int chars; // For strings
-        float single_float;
-      };
-    };
-  };
-} object;
-
-typedef object *(*fn_ptr_type)(object *, object *);
-typedef void (*mapfun_t)(object *, object **);
-
-typedef const struct {
-  PGM_P string;
-  fn_ptr_type fptr;
-  uint8_t minmax;
-  const char *doc;
-} tbl_entry_t;
-
-typedef int (*gfun_t)();
-typedef void (*pfun_t)(char);
-
-typedef uint16_t builtin_t;
-
-enum builtins: builtin_t { NIL, TEE, NOTHING, OPTIONAL, INITIALELEMENT, ELEMENTTYPE, BIT, AMPREST, LAMBDA, LET, LETSTAR,
-CLOSURE, PSTAR, QUOTE, DEFUN, DEFVAR, CAR, FIRST, CDR, REST, NTH, AREF, STRINGFN, PINMODE, DIGITALWRITE,
-ANALOGREAD, REGISTER, FORMAT, 
- };
 
 // Global variables
 
@@ -714,14 +657,14 @@ uint32_t FSRead32 (File file) {
 }
 #else
 void EpromWriteInt(int *addr, uintptr_t data) {
-  EEPROM.write((*addr)++, data & 0xFF); EEPROM.write((*addr)++, data>>8 & 0xFF);
-  EEPROM.write((*addr)++, data>>16 & 0xFF); EEPROM.write((*addr)++, data>>24 & 0xFF);
+//  EEPROM.write((*addr)++, data & 0xFF); EEPROM.write((*addr)++, data>>8 & 0xFF);
+//  EEPROM.write((*addr)++, data>>16 & 0xFF); EEPROM.write((*addr)++, data>>24 & 0xFF);
 }
 
 int EpromReadInt (int *addr) {
-  uint8_t b0 = EEPROM.read((*addr)++); uint8_t b1 = EEPROM.read((*addr)++);
-  uint8_t b2 = EEPROM.read((*addr)++); uint8_t b3 = EEPROM.read((*addr)++);
-  return b0 | b1<<8 | b2<<16 | b3<<24;
+//  uint8_t b0 = EEPROM.read((*addr)++); uint8_t b1 = EEPROM.read((*addr)++);
+//  uint8_t b2 = EEPROM.read((*addr)++); uint8_t b3 = EEPROM.read((*addr)++);
+//  return b0 | b1<<8 | b2<<16 | b3<<24;
 }
 #endif
 
