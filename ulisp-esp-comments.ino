@@ -268,6 +268,7 @@ unsigned int TraceFn[TRACEMAX];
 unsigned int TraceDepth[TRACEMAX];
 builtin_t Context;
 
+object *Events = NULL;
 object *GlobalEnv;
 object *GCStack = NULL;
 object *GlobalString;
@@ -277,6 +278,7 @@ uint8_t PrintCount = 0;
 uint8_t BreakLevel = 0;
 char LastChar = 0;
 char LastPrint = 0;
+int nReplReadCount = 0;
 
 // Flags
 enum flag { PRINTREADABLY, RETURNFLAG, ESCAPE, EXITEDITOR, LIBRARYLOADED, NOESC, NOECHO, MUFFLEERRORS };
@@ -606,7 +608,8 @@ void gc (object *form, object *env) {
   markobject(tee);
   markobject(GlobalEnv);
   markobject(GCStack);
-  markobject(form);
+    markobject(Events);
+    markobject(form);
   markobject(env);
   sweep();
   #if defined(printgcs)
@@ -2410,6 +2413,63 @@ object *sp_defun (object *args, object *env) {
   else push(cons(var, val), GlobalEnv);
   return var;
 }
+
+// Interrupts
+#define NINTERRUPTS 2
+
+unsigned int InterruptCount[NINTERRUPTS];
+
+inline void handleInterrupts (unsigned long nMsTime) {
+//  if (tstflag(BUSY)) return;
+//  setflag(BUSY);
+  unsigned int delayMs, flag;
+//  cli(); flag = tstflag(INTERRUPT); clrflag(INTERRUPT); sei();
+  if (1) {
+    for (int i=0; i<NINTERRUPTS; i++) {
+      delayMs = InterruptCount[i];
+//      InterruptCount[i] = 0;
+      if (delayMs && nMsTime % delayMs  == 0) {
+//        printf("%s run %d\n", __FUNCTION__ , i);
+        object *pair = assoc(number(i),Events);
+        object *arg = cons(number(i), NULL);
+        push(arg, GCStack);
+        if (pair != NULL) apply(cdr(pair), arg, NULL);
+        pop(GCStack);
+        gc(NULL, NULL);
+      }
+    }
+  }
+//  clrflag(BUSY);
+}
+
+//void interrupt (int n) {
+//  setflag(INTERRUPT);
+//  if (InterruptCount[n] < 0xFFFF) InterruptCount[n]++;
+//}
+
+//ISR(INT0_vect) { interrupt(0); }
+//ISR(INT1_vect) { interrupt(1); }
+
+
+object *fn_attachinterrupt (object *args, object *env) {
+  (void) env;
+  object *number = first(args);
+  int n = checkinteger(number);
+  if (n<0 || n>=NINTERRUPTS) error(PSTR("'attach-interrupt' invalid interrupt"), args);
+  args = cdr(args);
+  delassoc(number,&Events);
+  push(cons(number,first(args)),Events);
+//  InterruptCount[n] = 1;
+//  int mode = 3;
+  args = cdr(args);
+  int delayMs = checkinteger(first(args));
+  if (delayMs < 5)
+      delayMs = 5;
+  InterruptCount[n] = delayMs;
+
+  return nil;
+}
+
 
 /*
   (defvar variable form)
@@ -5834,6 +5894,7 @@ const char string11[] PROGMEM = "closure";
 const char string12[] PROGMEM = "*pc*";
 const char string13[] PROGMEM = "quote";
 const char string14[] PROGMEM = "defun";
+const char string14x[] PROGMEM = "attach-interrupt";
 const char string15[] PROGMEM = "defvar";
 const char string16[] PROGMEM = "car";
 const char string17[] PROGMEM = "first";
@@ -6083,6 +6144,8 @@ const char doc10[] PROGMEM = "(let* ((var value) ... ) forms*)\n"
 "Each declaration can refer to local variables that have been defined earlier in the let*.";
 const char doc14[] PROGMEM = "(defun name (parameters) form*)\n"
 "Defines a function.";
+const char doc14x[] PROGMEM = "(attach-interrupt index name delayMs)\n"
+"add timer, index (0,1), name is a function name, delayMs.";
 const char doc15[] PROGMEM = "(defvar variable form)\n"
 "Defines a global variable.";
 const char doc16[] PROGMEM = "(car list)\n"
@@ -6599,6 +6662,7 @@ const tbl_entry_t lookup_table[] PROGMEM = {
   { string12, NULL, 0007, NULL },
   { string13, sp_quote, 0311, NULL },
   { string14, sp_defun, 0327, doc14 },
+  { string14x, fn_attachinterrupt, 0xdb, doc14x },
   { string15, sp_defvar, 0313, doc15 },
   { string16, fn_car, 0211, doc16 },
   { string17, fn_car, 0211, NULL },
@@ -7496,6 +7560,7 @@ void processkey (char c) {
   return;
 }
 
+unsigned long nMsTime = 0;
 /*
   gserial - gets a character from the serial port
 */
@@ -7516,9 +7581,23 @@ int gserial () {
   WritePtr = 0;
   return '\n';
 #else
+  int count = 0;
   unsigned long start = millis();
-  while (!Serial.available()) { delay(1); if (millis() - start > 1000) clrflag(NOECHO); }
+  while (!Serial.available()) {
+      nMsTime += 1;
+      delay(1);
+      if (millis() - start > 1000)
+          clrflag(NOECHO);
+      count += 1;
+      if (nReplReadCount == 0) {
+          handleInterrupts(nMsTime);
+      }
+  }
   char temp = Serial.read();
+  if (temp == '\n' || temp == '\r' || temp == ' ' || temp == '\t') {
+  } else {
+      nReplReadCount += 1;
+  }
   if (temp != '\n' && !tstflag(NOECHO)) pserial(temp);
   return temp;
 #endif
@@ -7731,14 +7810,20 @@ void setup () {
   initsleep();
   initgfx();
 
+    for (int i = 0; i <NINTERRUPTS; ++i) {
+        InterruptCount[i] = 0;
+    }
+
   printf("(defvar pinMode %d)\n", &pinMode);
   printf("(defvar digitalWrite %d)\n", &digitalWrite);
   printf("(defvar test_cfun %d)\n", &test_cfun);
   printf("(defvar test_cfun1 %d)\n", &test_cfun1);
   printf("(defvar testClass %d)\n", &testClass);
 //    printf("(testClass.foo %d)\n", &TestClass::foo);
-    // printf("(TestClass_foo %d)\n", &TestClass_foo);
-    printf("(defvar markUse %d)\n", &markUse);
+    // printf("(TestClass_foo %d)\n", &TestClass_foo);handleInterrupts
+     printf("(defvar handleInterrupts %d)\n", &handleInterrupts);
+
+//    printf("(defvar markUse %d)\n", &markUse);
 
   pfstring(PSTR("uLisp 4.4b "), pserial); pln(pserial);
 }
@@ -7761,6 +7846,7 @@ void repl (object *env) {
     }
     pserial('>'); pserial(' ');
     Context = NIL;
+    nReplReadCount = 0;
     object *line = read(gserial);
     if (BreakLevel && line == nil) { pln(pserial); return; }
     if (line == (object *)KET) error2(PSTR("unmatched right bracket"));
