@@ -2431,7 +2431,7 @@ inline void handleInterrupts (unsigned long nMsTime) {
       if (delayMs && nMsTime % delayMs  == 0) {
 //        printf("%s run %d\n", __FUNCTION__ , i);
         object *pair = assoc(number(i),Events);
-        object *arg = cons(number(i), NULL);
+        object *arg = cons(number(i), cons(number(nMsTime/delayMs), nil));
         push(arg, GCStack);
         if (pair != NULL) apply(cdr(pair), arg, NULL);
         pop(GCStack);
@@ -2453,10 +2453,21 @@ inline void handleInterrupts (unsigned long nMsTime) {
 
 object *fn_attachinterrupt (object *args, object *env) {
   (void) env;
+  if (listlength(args) != 3) {
+      if (listlength(args) < 3)
+          error(toofewargs, args);
+      if (listlength(args) > 3)
+        error(toomanyargs, args);
+  }
   object *number = first(args);
   int n = checkinteger(number);
   if (n<0 || n>=NINTERRUPTS) error(PSTR("'attach-interrupt' invalid interrupt"), args);
   args = cdr(args);
+  if (args == nil || first(args) == nil) {
+      //clean
+      InterruptCount[n] = 0;
+      return nil;
+  }
   delassoc(number,&Events);
   push(cons(number,first(args)),Events);
 //  InterruptCount[n] = 1;
