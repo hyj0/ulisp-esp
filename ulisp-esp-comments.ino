@@ -11,7 +11,7 @@ const char LispLibrary[] PROGMEM = "";
 
 // Compile options
 
-// #define resetautorun
+#define resetautorun
 #define printfreespace
 // #define printgcs
 // #define sdcardsupport
@@ -20,6 +20,7 @@ const char LispLibrary[] PROGMEM = "";
 // #define lineeditor
 // #define vt100
 // #define extensions
+#define LITTLEFS
 
 // Includes
 
@@ -5915,7 +5916,6 @@ const char string20[] PROGMEM = "nth";
 const char string21[] PROGMEM = "aref";
 const char string22[] PROGMEM = "string";
 const char string23[] PROGMEM = "pinmode";
-const char string23x[] PROGMEM = "call-c-fun";
 const char string24[] PROGMEM = "digitalwrite";
 const char string25[] PROGMEM = "analogread";
 const char string26[] PROGMEM = "register";
@@ -6131,6 +6131,7 @@ const char string230[] PROGMEM = ":input-pullup";
 const char string231[] PROGMEM = ":input-pulldown";
 const char string232[] PROGMEM = ":output";
 #endif
+const char string23x[] PROGMEM = "call-c-fun";
 
 // Documentation strings
 const char doc0[] PROGMEM = "nil\n"
@@ -6673,7 +6674,6 @@ const tbl_entry_t lookup_table[] PROGMEM = {
   { string12, NULL, 0007, NULL },
   { string13, sp_quote, 0311, NULL },
   { string14, sp_defun, 0327, doc14 },
-  { string14x, fn_attachinterrupt, 0xdb, doc14x },
   { string15, sp_defvar, 0313, doc15 },
   { string16, fn_car, 0211, doc16 },
   { string17, fn_car, 0211, NULL },
@@ -6683,7 +6683,6 @@ const tbl_entry_t lookup_table[] PROGMEM = {
   { string21, fn_aref, 0227, doc21 },
   { string22, fn_stringfn, 0211, doc22 },
   { string23, fn_pinmode, 0222, doc23 },
-  { string23x, fn_call_c_fun, 0x8F, doc23x }, /* fn 0 7 */
   { string24, fn_digitalwrite, 0222, doc24 },
   { string25, fn_analogread, 0211, doc25 },
   { string26, fn_register, 0212, doc26 },
@@ -6899,6 +6898,8 @@ const tbl_entry_t lookup_table[] PROGMEM = {
   { string231, (fn_ptr_type)INPUT_PULLDOWN, PINMODE, NULL },
   { string232, (fn_ptr_type)OUTPUT, PINMODE, NULL },
 #endif
+  { string14x, fn_attachinterrupt, 0xdb, doc14x },
+  { string23x, fn_call_c_fun, 0x8F, doc23x }, /* fn 0 7 */
 };
 
 #if !defined(extensions)
@@ -7833,8 +7834,9 @@ void setup () {
 //    printf("(testClass.foo %d)\n", &TestClass::foo);
     // printf("(TestClass_foo %d)\n", &TestClass_foo);handleInterrupts
      printf("(defvar handleInterrupts %d)\n", &handleInterrupts);
+    printf("(defvar autorunimage %d)\n", &autorunimage);
 
-//    printf("(defvar markUse %d)\n", &markUse);
+    printf("(defvar markUse %d)\n", &markUse);
 
   pfstring(PSTR("uLisp 4.4b "), pserial); pln(pserial);
 }
