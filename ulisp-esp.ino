@@ -280,6 +280,22 @@ uint8_t BreakLevel = 0;
 char LastChar = 0;
 char LastPrint = 0;
 int nReplReadCount = 0;
+/*
+  pserial - prints a character to the serial port
+*/
+void __pserial (char c) {
+    LastPrint = c;
+    if (c == '\n') Serial.write('\r');
+    Serial.write(c);
+}
+
+void (*pserial)(char) = &__pserial;
+void set_pserial(void (*in)(char)) {
+    pserial = in;
+}
+void reset_pserial(){
+    pserial = __pserial;
+}
 
 // Flags
 enum flag { PRINTREADABLY, RETURNFLAG, ESCAPE, EXITEDITOR, LIBRARYLOADED, NOESC, NOECHO, MUFFLEERRORS };
@@ -4882,9 +4898,16 @@ void *__get_value(object *o){
     return NULL;
 }
 
+int call_c_fun_debug = 1;
+int set_call_c_fun_debug(int flag){
+    call_c_fun_debug = flag;
+}
+
 void *get_value(object *o){
     void *ret = __get_value(o);
-    printf("%s value=%d\n", __FUNCTION__, ret);
+    if (call_c_fun_debug){
+        printf("%s value=%d\n", __FUNCTION__, ret);
+    }
     return ret;
 }
 
@@ -4924,7 +4947,9 @@ object *fn_call_c_fun (object *args, object *env) {
   uint32_t ret;
   object *fun_args = cdr(args);
   int arg_len = listlength(cdr(args));
-  printf("addr=%d arg_len=%d\n", pAddr, arg_len);
+  if (call_c_fun_debug){
+      printf("addr=%d arg_len=%d\n", pAddr, arg_len);
+  }
     switch (arg_len) {
         case 0: {
             pFun0 = reinterpret_cast<uint32_t (*)()>(pAddr);
@@ -7172,14 +7197,8 @@ object *eval (object *form, object *env) {
 
 // Print functions
 
-/*
-  pserial - prints a character to the serial port
-*/
-void pserial (char c) {
-  LastPrint = c;
-  if (c == '\n') Serial.write('\r');
-  Serial.write(c);
-}
+
+
 
 const char ControlCodes[] PROGMEM = "Null\0SOH\0STX\0ETX\0EOT\0ENQ\0ACK\0Bell\0Backspace\0Tab\0Newline\0VT\0"
 "Page\0Return\0SO\0SI\0DLE\0DC1\0DC2\0DC3\0DC4\0NAK\0SYN\0ETB\0CAN\0EM\0SUB\0Escape\0FS\0GS\0RS\0US\0Space\0";
@@ -7826,8 +7845,8 @@ void setup () {
         InterruptCount[i] = 0;
     }
 
-  printf("(defvar pinMode %d)\n", &pinMode);
-  printf("(defvar digitalWrite %d)\n", &digitalWrite);
+  printf("(defvar pinMode1 %d)\n", &pinMode);
+  printf("(defvar digitalWrite1 %d)\n", &digitalWrite);
   printf("(defvar test_cfun %d)\n", &test_cfun);
   printf("(defvar test_cfun1 %d)\n", &test_cfun1);
   printf("(defvar testClass %d)\n", &testClass);
@@ -7835,9 +7854,13 @@ void setup () {
     // printf("(TestClass_foo %d)\n", &TestClass_foo);handleInterrupts
      printf("(defvar handleInterrupts %d)\n", &handleInterrupts);
     printf("(defvar autorunimage %d)\n", &autorunimage);
+    printf("(defvar __pserial %d)\n", &__pserial);
+    printf("(defvar set_pserial %d)\n", &set_pserial);
+    printf("(defvar reset_pserial %d)\n", &reset_pserial);
+    printf("(defvar set_call_c_fun_debug %d)\n", &set_call_c_fun_debug);
 
     printf("(defvar markUse %d)\n", &markUse);
-
+    markUse();
   pfstring(PSTR("uLisp 4.4b "), pserial); pln(pserial);
 }
 
