@@ -4992,6 +4992,349 @@ object *fn_call_c_fun (object *args, object *env) {
   return nil;
 }
 
+#define cf2_arg1 (first(signArgs)==nil? get_value(first(fun_args)):first(fun_args))
+#define cf2_arg2 cf2_arg1, (second(signArgs)==nil? get_value(second(fun_args)):second(fun_args))
+#define cf2_arg3 cf2_arg2,(third(signArgs)==nil? get_value(third(fun_args)):third(fun_args))
+#define cf2_arg4 cf2_arg3,(my_nth(signArgs, 3)==nil? get_value(my_nth(fun_args, 3)):my_nth(fun_args, 3))
+#define cf2_arg5 cf2_arg4,(my_nth(signArgs, 4)==nil? get_value(my_nth(fun_args, 4)):my_nth(fun_args, 4))
+/*
+ * call c function
+ * (call-c-fun2 '(t (t nil nil...)) address arg0 arg1 ...)
+ */
+object *fn_call_c_fun2 (object *args, object *env) {
+    (void) env; void *pAddr;
+
+    //sign
+    object *sign = first(args);
+    if (!listp(sign) or listlength(sign) != 2) {
+        error("arg not list 2 item", sign);
+        return nil;
+    }
+    bool retTypeIsObjectFlag = (first(sign) != nil);
+    object *signArgs = second(sign);
+    int signArgsLen = listlength(second(sign));
+
+    //addr
+    object *arg = second(args);
+    if (checkinteger(arg)) {
+        pAddr = reinterpret_cast<void *>(checkinteger(arg));
+    } else {
+        return nil;
+    }
+
+    //args
+    uint32_t ret;
+    object *fun_args = cdr(cdr(args));
+    int arg_len = listlength(fun_args);
+    if (arg_len != signArgsLen) {
+        error("args not match", cons(signArgs, cons(fun_args, nil)));
+        return nil;
+    }
+    if (call_c_fun_debug){
+        printf("addr=%d arg_len=%d\n", pAddr, arg_len);
+    }
+    switch (arg_len) {
+        case 0: {
+            pFun0 = reinterpret_cast<uint32_t (*)()>(pAddr);
+            ret = pFun0();
+            return retTypeIsObjectFlag? (object *)ret : number(ret);
+        }
+        case 1: {
+            pFun1 = reinterpret_cast<uint32_t (*)(void *)>(pAddr);
+            ret = pFun1(cf2_arg1);
+            return retTypeIsObjectFlag? (object *)ret : number(ret);
+            break;
+        }
+        case 2: {
+            pFun2 = reinterpret_cast<uint32_t (*)(void *, void *)>(pAddr);
+            ret = pFun2(cf2_arg2);
+            return retTypeIsObjectFlag? (object *)ret : number(ret);
+            break;
+        }
+        case 3: {
+            pFun3 = reinterpret_cast<uint32_t (*)(void *, void *, void *)>(pAddr);
+            ret = pFun3(cf2_arg3);
+            return retTypeIsObjectFlag? (object *)ret : number(ret);
+            break;
+        }
+        case 4: {
+            pFun4 = reinterpret_cast<uint32_t (*)(void *, void *, void *, void *)>(pAddr);
+            ret = pFun4(cf2_arg4);
+            return retTypeIsObjectFlag? (object *)ret : number(ret);
+        }
+        case 5: {
+            pFun5 = reinterpret_cast<uint32_t (*)(void *, void *, void *, void *, void *)>(pAddr);
+            ret = pFun5(cf2_arg5);
+            return retTypeIsObjectFlag? (object *)ret : number(ret);
+        }
+        default:
+            SerialPrintInt(arg_len);
+            error(toomanyargs, args);
+            return nil;
+    }
+    return nil;
+}
+
+int testVaFun(int count, ...){
+    va_list args;
+    va_start(args, count);
+
+    int result = 0;
+    for (int i = 0; i < count; i++) {
+        int n = va_arg(args, int);
+        result += n;
+        printf("%s %d\n", __FUNCTION__ , n);
+    }
+    va_end(args);
+    return result;
+}
+
+#define cf3_arg1(tail) cons(first(signArgs)==nil? number((int)arg0):(object*)arg0, (tail))
+#define cf3_arg2(tail) cf3_arg1(cons(second(signArgs)==nil? number((int)va_arg(args, void *)):(object*)va_arg(args, void *), (tail)))
+#define cf3_arg3(tail) cf3_arg1(cons( third(signArgs)==nil? number((int)va_arg(args, void *)):(object*)va_arg(args, void *), (tail)))
+#define cf3_arg4(tail) cf3_arg1(cons(my_nth(signArgs,3)==nil? number((int)va_arg(args, void *)):(object*)va_arg(args, void *), (tail)))
+#define cf3_arg5(tail) cf3_arg1(cons(my_nth(signArgs,4)==nil? number((int)va_arg(args, void *)):(object*)va_arg(args, void *), (tail)))
+
+#define PRINT_STR_OBJECT(str, obj)  pstring(str, pserial);\
+                                    printobject(obj, pserial); \
+                                    pstring("\n", pserial);
+object *getHookFunData0(const char *__cfunName){
+    char *cfunName = (char *)__cfunName;
+    object *s = internlong("g_hook_fun");
+    object *v = findvalue(s, GlobalEnv);
+    object *ret = assoc(internlong(cfunName), cdr(v));
+    if (ret == nil){
+        error("not found item", cons(internlong(cfunName), cdr(v)));
+        return NULL;
+    }
+    PRINT_STR_OBJECT("getHookFunData:", ret);
+    return ret;
+}
+
+void *__hookFun00(){
+    object *ret = getHookFunData0(__FUNCTION__);
+
+    //ret=addr, sign, fun
+    object *sign = second(ret);
+    bool retTypeIsObjectFlag = (first(sign) != nil);
+    object *lret = apply(third(ret), nil, nil);
+    return retTypeIsObjectFlag?lret:get_value(lret);
+}
+void *__hookFun01(){
+    object *ret = getHookFunData0(__FUNCTION__);
+
+    //ret=addr, sign, fun
+    object *sign = second(ret);
+    bool retTypeIsObjectFlag = (first(sign) != nil);
+    object *lret = apply(third(ret), nil, nil);
+    return retTypeIsObjectFlag?lret:get_value(lret);
+}
+void *__hookFun02(){
+    object *ret = getHookFunData0(__FUNCTION__);
+
+    //ret=addr, sign, fun
+    object *sign = second(ret);
+    bool retTypeIsObjectFlag = (first(sign) != nil);
+    object *lret = apply(third(ret), nil, nil);
+    return retTypeIsObjectFlag?lret:get_value(lret);
+}
+
+void *__hookFunN0(void *arg0, ...){
+    object *ret = getHookFunData0(__FUNCTION__);
+
+    //ret=addr, sign, fun
+    object *sign = second(ret);
+    bool retTypeIsObjectFlag = (first(sign) != nil);
+    object *signArgs = second(sign);
+    int signArgsLen = listlength(second(sign));
+    va_list args;
+    va_start(args, arg0);
+    switch (signArgsLen) {
+        case 1:{
+            object *lispArgs = cf3_arg1(nil);
+            PRINT_STR_OBJECT("lispArgs:", lispArgs);
+
+            object *lret = apply(third(ret), lispArgs, nil);
+            return retTypeIsObjectFlag?lret:get_value(lret);
+            break;
+        }
+        case 2:{
+            object *lispArgs = cf3_arg2(nil);
+            PRINT_STR_OBJECT("lispArgs:", lispArgs);
+
+            object *lret = apply(third(ret), lispArgs, nil);
+            return retTypeIsObjectFlag?lret:get_value(lret);
+            break;
+        }
+        case 3:{
+            object *lispArgs = cf3_arg3(nil);
+            PRINT_STR_OBJECT("lispArgs:", lispArgs);
+
+            object *lret = apply(third(ret), lispArgs, nil);
+            return retTypeIsObjectFlag?lret:get_value(lret);
+            break;
+        }
+        case 4: {
+            object *lispArgs = cf3_arg4(nil);
+            PRINT_STR_OBJECT("lispArgs:", lispArgs);
+
+            object *lret = apply(third(ret), lispArgs, nil);
+            return retTypeIsObjectFlag?lret:get_value(lret);
+            break;
+        }
+        case 5: {
+            object *lispArgs = cf3_arg5(nil);
+            PRINT_STR_OBJECT("lispArgs:", lispArgs);
+
+            object *lret = apply(third(ret), lispArgs, nil);
+            return retTypeIsObjectFlag?lret:get_value(lret);
+            break;
+        }
+        default:
+            error("err argsLen", number(signArgsLen));
+            return number(0);
+    }
+    return number(0);
+}
+void *__hookFunN1(void *arg0, ...){
+    object *ret = getHookFunData0(__FUNCTION__);
+
+    //ret=addr, sign, fun
+    object *sign = second(ret);
+    bool retTypeIsObjectFlag = (first(sign) != nil);
+    object *signArgs = second(sign);
+    int signArgsLen = listlength(second(sign));
+    va_list args;
+    va_start(args, arg0);
+    switch (signArgsLen) {
+        case 1:{
+            object *lispArgs = cf3_arg1(nil);
+            PRINT_STR_OBJECT("lispArgs:", lispArgs);
+
+            object *lret = apply(third(ret), lispArgs, nil);
+            return retTypeIsObjectFlag?lret:get_value(lret);
+            break;
+        }
+        case 2:{
+            object *lispArgs = cf3_arg2(nil);
+            PRINT_STR_OBJECT("lispArgs:", lispArgs);
+
+            object *lret = apply(third(ret), lispArgs, nil);
+            return retTypeIsObjectFlag?lret:get_value(lret);
+            break;
+        }
+        case 3:{
+            object *lispArgs = cf3_arg3(nil);
+            PRINT_STR_OBJECT("lispArgs:", lispArgs);
+
+            object *lret = apply(third(ret), lispArgs, nil);
+            return retTypeIsObjectFlag?lret:get_value(lret);
+            break;
+        }
+        case 4: {
+            object *lispArgs = cf3_arg4(nil);
+            PRINT_STR_OBJECT("lispArgs:", lispArgs);
+
+            object *lret = apply(third(ret), lispArgs, nil);
+            return retTypeIsObjectFlag?lret:get_value(lret);
+            break;
+        }
+        case 5: {
+            object *lispArgs = cf3_arg5(nil);
+            PRINT_STR_OBJECT("lispArgs:", lispArgs);
+
+            object *lret = apply(third(ret), lispArgs, nil);
+            return retTypeIsObjectFlag?lret:get_value(lret);
+            break;
+        }
+        default:
+            error("err argsLen", number(signArgsLen));
+            return number(0);
+    }
+    return number(0);
+}
+void *__hookFunN2(void *arg0, ...){
+    object *ret = getHookFunData0(__FUNCTION__);
+
+    //ret=addr, sign, fun
+    object *sign = second(ret);
+    bool retTypeIsObjectFlag = (first(sign) != nil);
+    object *signArgs = second(sign);
+    int signArgsLen = listlength(second(sign));
+    va_list args;
+    va_start(args, arg0);
+    switch (signArgsLen) {
+        case 1:{
+            object *lispArgs = cf3_arg1(nil);
+            PRINT_STR_OBJECT("lispArgs:", lispArgs);
+
+            object *lret = apply(third(ret), lispArgs, nil);
+            return retTypeIsObjectFlag?lret:get_value(lret);
+            break;
+        }
+        case 2:{
+            object *lispArgs = cf3_arg2(nil);
+            PRINT_STR_OBJECT("lispArgs:", lispArgs);
+
+            object *lret = apply(third(ret), lispArgs, nil);
+            return retTypeIsObjectFlag?lret:get_value(lret);
+            break;
+        }
+        case 3:{
+            object *lispArgs = cf3_arg3(nil);
+            PRINT_STR_OBJECT("lispArgs:", lispArgs);
+
+            object *lret = apply(third(ret), lispArgs, nil);
+            return retTypeIsObjectFlag?lret:get_value(lret);
+            break;
+        }
+        case 4: {
+            object *lispArgs = cf3_arg4(nil);
+            PRINT_STR_OBJECT("lispArgs:", lispArgs);
+
+            object *lret = apply(third(ret), lispArgs, nil);
+            return retTypeIsObjectFlag?lret:get_value(lret);
+            break;
+        }
+        case 5: {
+            object *lispArgs = cf3_arg5(nil);
+            PRINT_STR_OBJECT("lispArgs:", lispArgs);
+
+            object *lret = apply(third(ret), lispArgs, nil);
+            return retTypeIsObjectFlag?lret:get_value(lret);
+            break;
+        }
+        default:
+            error("err argsLen", number(signArgsLen));
+            return number(0);
+    }
+    return number(0);
+}
+
+typedef struct __HookFunData {
+    int argsLen; //0, n
+    void *addr;
+    char funName[32];
+}HookFunData;
+HookFunData  g_hookFunData[]={
+        {0, (void *)&__hookFun00, "__hookFun00"},
+        {0, (void *)&__hookFun01, "__hookFun01"},
+        {0, (void *)&__hookFun02, "__hookFun02"},
+        {1, (void *)&__hookFunN0, "__hookFunN0"},
+        {1, (void *)&__hookFunN1, "__hookFunN1"},
+        {1, (void *)&__hookFunN2, "__hookFunN2"},
+};
+
+object *getAllHookFunList(){
+    object *retList = nil;
+    for (int i = 0; i < sizeof(g_hookFunData)/sizeof(HookFunData); ++i) {
+        retList = cons(
+                cons(internlong(g_hookFunData[i].funName),
+                        cons(number((int)g_hookFunData[i].addr), cons(number(g_hookFunData[i].argsLen), nil))), retList);
+    }
+    return retList;
+}
+
 /*
   (digitalread pin)
   Reads the state of the specified Arduino pin number and returns t (high) or nil (low).
@@ -6157,6 +6500,7 @@ const char string231[] PROGMEM = ":input-pulldown";
 const char string232[] PROGMEM = ":output";
 #endif
 const char string23x[] PROGMEM = "call-c-fun";
+const char string23x2[] PROGMEM = "call-c-fun2";
 
 // Documentation strings
 const char doc0[] PROGMEM = "nil\n"
@@ -6200,6 +6544,8 @@ const char doc23[] PROGMEM = "(pinmode pin mode)\n"
 "The mode parameter can be an integer, a keyword, or t or nil.";
 const char doc23x[] PROGMEM = "(call-c-fun address arg0 arg1 ...)\n"
 "call a c function at address with args";
+const char doc23x2[] PROGMEM = "(call-c-fun2 (t (t nil nil...)) address arg0 arg1 ...)\n"
+                              "call a c function at address with args";
 const char doc24[] PROGMEM = "(digitalwrite pin state)\n"
 "Sets the state of the specified Arduino pin number.";
 const char doc25[] PROGMEM = "(analogread pin)\n"
@@ -6925,6 +7271,7 @@ const tbl_entry_t lookup_table[] PROGMEM = {
 #endif
   { string14x, fn_attachinterrupt, 0xdb, doc14x },
   { string23x, fn_call_c_fun, 0x8F, doc23x }, /* fn 0 7 */
+  { string23x2, fn_call_c_fun2, 0x8F, doc23x2 }, /* fn 0 7 */
 };
 
 #if !defined(extensions)
@@ -7801,7 +8148,9 @@ object *read (gfun_t gfun) {
   if (item == (object *)QUO) return cons(bsymbol(QUOTE), cons(read(gfun), NULL));
   return item;
 }
-
+object *read2 (gfun_t gfun) {
+    return read(gfun);
+}
 // Setup
 
 /*
@@ -7831,6 +8180,35 @@ void initgfx () {
   #endif
 }
 
+void printAddr(){
+
+    printf("(defvar pinMode1 %d)\n", &pinMode);
+    printf("(defvar digitalWrite1 %d)\n", &digitalWrite);
+    printf("(defvar test_cfun %d)\n", &test_cfun);
+    printf("(defvar test_cfun1 %d)\n", &test_cfun1);
+    printf("(defvar testClass %d)\n", &testClass);
+//    printf("(testClass.foo %d)\n", &TestClass::foo);
+    // printf("(TestClass_foo %d)\n", &TestClass_foo);handleInterrupts
+    printf("(defvar handleInterrupts %d)\n", &handleInterrupts);
+    printf("(defvar autorunimage %d)\n", &autorunimage);
+    printf("(defvar __pserial %d)\n", &__pserial);
+    printf("(defvar set_pserial %d)\n", &set_pserial);
+    printf("(defvar reset_pserial %d)\n", &reset_pserial);
+    printf("(defvar set_call_c_fun_debug %d)\n", &set_call_c_fun_debug);
+    printf("(defvar read2 %d)\n", &read2);
+    printf("(defvar gserial %d)\n", &gserial);
+    printf("(defvar testVaFun %d)\n", &testVaFun);
+    printf("(defvar __hookFun00 %d)\n", &__hookFun00);
+    printf("(defvar __hookFun01 %d)\n", &__hookFun01);
+    printf("(defvar __hookFun02 %d)\n", &__hookFun02);
+    printf("(defvar __hookFunN0 %d)\n", &__hookFunN0);
+    printf("(defvar __hookFunN1 %d)\n", &__hookFunN1);
+    printf("(defvar __hookFunN2 %d)\n", &__hookFunN2);
+    printf("(defvar getAllHookFunList %d)\n", &getAllHookFunList);
+
+    printf("(defvar markUse %d)\n", &markUse);
+    markUse();
+}
 // Entry point from the Arduino IDE
 void setup () {
   Serial.begin(115200);
@@ -7844,23 +8222,7 @@ void setup () {
     for (int i = 0; i <NINTERRUPTS; ++i) {
         InterruptCount[i] = 0;
     }
-
-  printf("(defvar pinMode1 %d)\n", &pinMode);
-  printf("(defvar digitalWrite1 %d)\n", &digitalWrite);
-  printf("(defvar test_cfun %d)\n", &test_cfun);
-  printf("(defvar test_cfun1 %d)\n", &test_cfun1);
-  printf("(defvar testClass %d)\n", &testClass);
-//    printf("(testClass.foo %d)\n", &TestClass::foo);
-    // printf("(TestClass_foo %d)\n", &TestClass_foo);handleInterrupts
-     printf("(defvar handleInterrupts %d)\n", &handleInterrupts);
-    printf("(defvar autorunimage %d)\n", &autorunimage);
-    printf("(defvar __pserial %d)\n", &__pserial);
-    printf("(defvar set_pserial %d)\n", &set_pserial);
-    printf("(defvar reset_pserial %d)\n", &reset_pserial);
-    printf("(defvar set_call_c_fun_debug %d)\n", &set_call_c_fun_debug);
-
-    printf("(defvar markUse %d)\n", &markUse);
-    markUse();
+  printAddr();
   pfstring(PSTR("uLisp 4.4b "), pserial); pln(pserial);
 }
 
