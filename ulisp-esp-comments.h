@@ -130,7 +130,7 @@ ANALOGREAD, REGISTER, FORMAT,
 
 typedef long int64_t ;
 
-extern void pserial (char c);
+//extern void pserial (char c);
 void pfl (pfun_t pfun);
 
 /*
@@ -220,7 +220,7 @@ extern object *tf_progn (object *args, object *env) ;
 extern void ulispreset () ;
 extern object *fn_eval (object *args, object *env) ;
 extern object *eval (object *form, object *env) ;
-
+extern void pstring (char *s, pfun_t pfun);
 extern char* strstr(char *a, char *b) {
     int len_a = strlen(a);
     int len_b = strlen(b);
