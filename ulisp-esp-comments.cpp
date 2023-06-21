@@ -30,6 +30,12 @@ const char LispLibrary[] PROGMEM = "";
 //#include <SPI.h>
 //#include <Wire.h>
 #include <limits.h>
+//#include <random>
+#include <cstdlib>
+#include <cmath>
+#include <cstring>
+#include <cstdio>
+//#include <cstdint>
 //#include <EEPROM.h>
 #if defined (ESP8266)
   #include <ESP8266WiFi.h>
@@ -228,7 +234,7 @@ volatile uint8_t Flags = 0b00001; // PRINTREADABLY set by default
 // Forward references
 object *tee;
 void pfstring (PGM_P s, pfun_t pfun);
-
+SerialCL Serial;
 // Error handling
 
 /*
@@ -2016,43 +2022,47 @@ object *mapcarcan (object *args, object *env, mapfun_t fun) {
 
 void I2Cinit (bool enablePullup) {
   (void) enablePullup;
-  Wire.begin();
+//  Wire.begin();
 }
 
 int I2Cread () {
-  return Wire.read();
+//  return Wire.read();
 }
 
 void I2Cwrite (uint8_t data) {
-  Wire.write(data);
+//  Wire.write(data);
 }
 
 bool I2Cstart (uint8_t address, uint8_t read) {
  int ok = true;
  if (read == 0) {
-   Wire.beginTransmission(address);
-   ok = (Wire.endTransmission(true) == 0);
-   Wire.beginTransmission(address);
+//   Wire.beginTransmission(address);
+//   ok = (Wire.endTransmission(true) == 0);
+//   Wire.beginTransmission(address);
  }
- else Wire.requestFrom(address, I2Ccount);
+// else Wire.requestFrom(address, I2Ccount);
  return ok;
 }
 
 bool I2Crestart (uint8_t address, uint8_t read) {
-  int error = (Wire.endTransmission(false) != 0);
-  if (read == 0) Wire.beginTransmission(address);
-  else Wire.requestFrom(address, I2Ccount);
+//  int error = (Wire.endTransmission(false) != 0);
+//  if (read == 0) Wire.beginTransmission(address);
+//  else Wire.requestFrom(address, I2Ccount);
   return error ? false : true;
 }
 
 void I2Cstop (uint8_t read) {
-  if (read == 0) Wire.endTransmission(); // Check for error?
+//  if (read == 0) Wire.endTransmission(); // Check for error?
 }
 
 // Streams
 
-inline int spiread () { return SPI.transfer(0); }
-inline int serial1read () { while (!Serial1.available()) testescape(); return Serial1.read(); }
+inline int spiread () {
+//    return SPI.transfer(0);
+}
+inline int serial1read () {
+//    while (!Serial1.available()) testescape(); return Serial1.read();
+}
 #if defined(sdcardsupport)
 File SDpfile, SDgfile;
 inline int SDread () {
@@ -2065,8 +2075,8 @@ inline int SDread () {
 }
 #endif
 
-WiFiClient client;
-WiFiServer server(80);
+//WiFiClient client;
+//WiFiServer server(80);
 
 inline int WiFiread () {
   if (LastChar) {
@@ -2074,16 +2084,16 @@ inline int WiFiread () {
     LastChar = 0;
     return temp;
   }
-  return client.read();
+//  return client.read();
 }
 
 void serialbegin (int address, int baud) {
-  if (address == 1) Serial1.begin((long)baud*100);
-  else error(PSTR("port not supported"), number(address));
+//  if (address == 1) Serial1.begin((long)baud*100);
+//  else error(PSTR("port not supported"), number(address));
 }
 
 void serialend (int address) {
-  if (address == 1) {Serial1.flush(); Serial1.end(); }
+//  if (address == 1) {Serial1.flush(); Serial1.end(); }
 }
 
 gfun_t gstreamfun (object *args) {
@@ -2108,9 +2118,15 @@ gfun_t gstreamfun (object *args) {
   return gfun;
 }
 
-inline void spiwrite (char c) { SPI.transfer(c); }
-inline void serial1write (char c) { Serial1.write(c); }
-inline void WiFiwrite (char c) { client.write(c); }
+inline void spiwrite (char c) {
+//    SPI.transfer(c);
+}
+inline void serial1write (char c) {
+//    Serial1.write(c);
+}
+inline void WiFiwrite (char c) {
+//    client.write(c);
+}
 #if defined(sdcardsupport)
 inline void SDwrite (char c) { SDpfile.write(c); }
 #endif
@@ -2180,7 +2196,7 @@ void checkanalogwrite (int pin) {
 #elif defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S2) || defined(ARDUINO_ADAFRUIT_FEATHER_ESP32S2_TFT) || defined(ARDUINO_ADAFRUIT_QTPY_ESP32S2) || defined(ARDUINO_FEATHERS2) || defined(ARDUINO_ESP32S2_DEV)
   if (!(pin>=17 && pin<=18)) error(PSTR("invalid pin"), number(pin));
 #elif defined(ARDUINO_ESP32C3_DEV) | defined(ARDUINO_ESP32S3_DEV) | defined(ARDUINO_ADAFRUIT_QTPY_ESP32C3)
-  error2(ANALOGWRITE, PSTR("not supported"));
+//  error2(ANALOGWRITE, PSTR("not supported"));
 #endif
 }
 
@@ -2199,7 +2215,7 @@ const int scale[] PROGMEM = {4186,4435,4699,4978,5274,5588,5920,6272,6645,7040,7
 void playnote (int pin, int note, int octave) {
   int prescaler = 8 - octave - note/12;
   if (prescaler<0 || prescaler>8) error(PSTR("octave out of range"), number(prescaler));
-  tone(pin, pgm_read_word(&scale[note%12])>>prescaler);
+//  tone(pin, (&scale[note%12])>>prescaler);
 }
 
 void nonote (int pin) {
@@ -2792,38 +2808,6 @@ object *sp_withi2c (object *args, object *env) {
   bitorder 0 for LSBFIRST and 1 for MSBFIRST (default 1), and SPI mode (default 0).
 */
 object *sp_withspi (object *args, object *env) {
-  object *params = checkarguments(args, 2, 6);
-  object *var = first(params);
-  params = cdr(params);
-  if (params == NULL) error2(nostream);
-  int pin = checkinteger(eval(car(params), env));
-  pinMode(pin, OUTPUT);
-  digitalWrite(pin, HIGH);
-  params = cdr(params);
-  int clock = 4000, mode = SPI_MODE0; // Defaults
-  int bitorder = MSBFIRST;
-  if (params != NULL) {
-    clock = checkinteger(eval(car(params), env));
-    params = cdr(params);
-    if (params != NULL) {
-      bitorder = (checkinteger(eval(car(params), env)) == 0) ? LSBFIRST : MSBFIRST;
-      params = cdr(params);
-      if (params != NULL) {
-        int modeval = checkinteger(eval(car(params), env));
-        mode = (modeval == 3) ? SPI_MODE3 : (modeval == 2) ? SPI_MODE2 : (modeval == 1) ? SPI_MODE1 : SPI_MODE0;
-      }
-    }
-  }
-  object *pair = cons(var, stream(SPISTREAM, pin));
-  push(pair,env);
-  SPI.begin();
-  SPI.beginTransaction(SPISettings(((unsigned long)clock * 1000), bitorder, mode));
-  digitalWrite(pin, LOW);
-  object *forms = cdr(args);
-  object *result = eval(tf_progn(forms,env), env);
-  digitalWrite(pin, HIGH);
-  SPI.endTransaction();
-  return result;
 }
 
 /*
@@ -4408,7 +4392,7 @@ object *fn_logbitp (object *args, object *env) {
   (void) env;
   int index = checkinteger(first(args));
   int value = checkinteger(second(args));
-  return (bitRead(value, index) == 1) ? tee : nil;
+//  return (bitRead(value, index) == 1) ? tee : nil;
 }
 
 // System functions
@@ -4686,20 +4670,20 @@ object *fn_cls (object *args, object *env) {
 */
 object *fn_pinmode (object *args, object *env) {
   (void) env; int pin;
-  object *arg = first(args);
-  if (keywordp(arg)) pin = checkkeyword(arg);
-  else pin = checkinteger(first(args));
-  int pm = INPUT;
-  arg = second(args);
-  if (keywordp(arg)) pm = checkkeyword(arg);
-  else if (integerp(arg)) {
-    int mode = arg->integer;
-    if (mode == 1) pm = OUTPUT; else if (mode == 2) pm = INPUT_PULLUP;
-    #if defined(INPUT_PULLDOWN)
-    else if (mode == 4) pm = INPUT_PULLDOWN;
-    #endif
-  } else if (arg != nil) pm = OUTPUT;
-  pinMode(pin, pm);
+//  object *arg = first(args);
+//  if (keywordp(arg)) pin = checkkeyword(arg);
+//  else pin = checkinteger(first(args));
+//  int pm = INPUT;
+//  arg = second(args);
+//  if (keywordp(arg)) pm = checkkeyword(arg);
+//  else if (integerp(arg)) {
+//    int mode = arg->integer;
+//    if (mode == 1) pm = OUTPUT; else if (mode == 2) pm = INPUT_PULLUP;
+//    #if defined(INPUT_PULLDOWN)
+//    else if (mode == 4) pm = INPUT_PULLDOWN;
+//    #endif
+//  } else if (arg != nil) pm = OUTPUT;
+//  pinMode(pin, pm);
   return nil;
 }
 
@@ -4848,7 +4832,7 @@ object *fn_digitalread (object *args, object *env) {
   object *arg = first(args);
   if (keywordp(arg)) pin = checkkeyword(arg);
   else pin = checkinteger(arg);
-  if (digitalRead(pin) != 0) return tee; else return nil;
+//  if (digitalRead(pin) != 0) return tee; else return nil;
 }
 
 /*
@@ -4866,7 +4850,7 @@ object *fn_digitalwrite (object *args, object *env) {
   if (keywordp(arg)) mode = checkkeyword(arg);
   else if (integerp(arg)) mode = arg->integer ? HIGH : LOW;
   else mode = (arg != nil) ? HIGH : LOW;
-  digitalWrite(pin, mode);
+//  digitalWrite(pin, mode);
   return arg;
 }
 
@@ -4883,7 +4867,7 @@ object *fn_analogread (object *args, object *env) {
     pin = checkinteger(arg);
     checkanalogread(pin);
   }
-  return number(analogRead(pin));
+//  return number(analogRead(pin));
 }
 
 /*
@@ -4914,7 +4898,7 @@ object *fn_analogwrite (object *args, object *env) {
   else pin = checkinteger(arg);
   checkanalogwrite(pin);
   object *value = second(args);
-  analogWrite(pin, checkinteger(value));
+//  analogWrite(pin, checkinteger(value));
   return value;
 }
 
@@ -5327,24 +5311,24 @@ object *sp_withclient (object *args, object *env) {
   params = cdr(params);
   int n;
   if (params == NULL) {
-    client = server.available();
-    if (!client) return nil;
+//    client = server.available();
+//    if (!client) return nil;
     n = 2;
   } else {
-    object *address = eval(first(params), env);
-    object *port = eval(second(params), env);
-    int success;
-    if (stringp(address)) success = client.connect(cstring(address, buffer, BUFFERSIZE), checkinteger(port));
-    else if (integerp(address)) success = client.connect(address->integer, checkinteger(port));
-    else error2(PSTR("invalid address"));
-    if (!success) return nil;
-    n = 1;
+//    object *address = eval(first(params), env);
+//    object *port = eval(second(params), env);
+//    int success;
+//    if (stringp(address)) success = client.connect(cstring(address, buffer, BUFFERSIZE), checkinteger(port));
+//    else if (integerp(address)) success = client.connect(address->integer, checkinteger(port));
+//    else error2(PSTR("invalid address"));
+//    if (!success) return nil;
+//    n = 1;
   }
   object *pair = cons(var, stream(WIFISTREAM, n));
   push(pair,env);
   object *forms = cdr(args);
   object *result = eval(tf_progn(forms,env), env);
-  client.stop();
+//  client.stop();
   return result;
 }
 
@@ -5353,9 +5337,9 @@ object *sp_withclient (object *args, object *env) {
   Returns the number of bytes available for reading from the wifi-stream, or zero if no bytes are available.
 */
 object *fn_available (object *args, object *env) {
-  (void) env;
-  if (isstream(first(args))>>8 != WIFISTREAM) error2(PSTR("invalid stream"));
-  return number(client.available());
+//  (void) env;
+//  if (isstream(first(args))>>8 != WIFISTREAM) error2(PSTR("invalid stream"));
+//  return number(client.available());
 }
 
 /*
@@ -5364,7 +5348,7 @@ object *fn_available (object *args, object *env) {
 */
 object *fn_wifiserver (object *args, object *env) {
   (void) args, (void) env;
-  server.begin();
+//  server.begin();
   return nil;
 }
 
@@ -5374,24 +5358,24 @@ object *fn_wifiserver (object *args, object *env) {
   Returns the IP address as a string or nil if unsuccessful.
 */
 object *fn_wifisoftap (object *args, object *env) {
-  (void) env;
-  char ssid[33], pass[65];
-  if (args == NULL) return WiFi.softAPdisconnect(true) ? tee : nil;
-  object *first = first(args); args = cdr(args);
-  if (args == NULL) WiFi.softAP(cstring(first, ssid, 33));
-  else {
-    object *second = first(args);
-    args = cdr(args);
-    int channel = 1;
-    bool hidden = false;
-    if (args != NULL) {
-      channel = checkinteger(first(args));
-      args = cdr(args);
-      if (args != NULL) hidden = (first(args) != nil);
-    }
-    WiFi.softAP(cstring(first, ssid, 33), cstring(second, pass, 65), channel, hidden);
-  }
-  return lispstring((char*)WiFi.softAPIP().toString().c_str());
+//  (void) env;
+//  char ssid[33], pass[65];
+//  if (args == NULL) return WiFi.softAPdisconnect(true) ? tee : nil;
+//  object *first = first(args); args = cdr(args);
+//  if (args == NULL) WiFi.softAP(cstring(first, ssid, 33));
+//  else {
+//    object *second = first(args);
+//    args = cdr(args);
+//    int channel = 1;
+//    bool hidden = false;
+//    if (args != NULL) {
+//      channel = checkinteger(first(args));
+//      args = cdr(args);
+//      if (args != NULL) hidden = (first(args) != nil);
+//    }
+//    WiFi.softAP(cstring(first, ssid, 33), cstring(second, pass, 65), channel, hidden);
+//  }
+//  return lispstring((char*)WiFi.softAPIP().toString().c_str());
 }
 
 /*
@@ -5399,9 +5383,9 @@ object *fn_wifisoftap (object *args, object *env) {
   Returns t or nil to indicate if the client on stream is connected.
 */
 object *fn_connected (object *args, object *env) {
-  (void) env;
-  if (isstream(first(args))>>8 != WIFISTREAM) error2(PSTR("invalid stream"));
-  return client.connected() ? tee : nil;
+//  (void) env;
+//  if (isstream(first(args))>>8 != WIFISTREAM) error2(PSTR("invalid stream"));
+//  return client.connected() ? tee : nil;
 }
 
 /*
@@ -5410,7 +5394,7 @@ object *fn_connected (object *args, object *env) {
 */
 object *fn_wifilocalip (object *args, object *env) {
   (void) args, (void) env;
-  return lispstring((char*)WiFi.localIP().toString().c_str());
+//  return lispstring((char*)WiFi.localIP().toString().c_str());
 }
 
 /*
@@ -5419,15 +5403,15 @@ object *fn_wifilocalip (object *args, object *env) {
 */
 object *fn_wificonnect (object *args, object *env) {
   (void) env;
-  char ssid[33], pass[65];
-  if (args == NULL) { WiFi.disconnect(true); return nil; }
-  if (cdr(args) == NULL) WiFi.begin(cstring(first(args), ssid, 33));
-  else WiFi.begin(cstring(first(args), ssid, 33), cstring(second(args), pass, 65));
-  int result = WiFi.waitForConnectResult();
-  if (result == WL_CONNECTED) return lispstring((char*)WiFi.localIP().toString().c_str());
-  else if (result == WL_NO_SSID_AVAIL) error2(PSTR("network not found"));
-  else if (result == WL_CONNECT_FAILED) error2(PSTR("connection failed"));
-  else error2(PSTR("unable to connect"));
+//  char ssid[33], pass[65];
+//  if (args == NULL) { WiFi.disconnect(true); return nil; }
+//  if (cdr(args) == NULL) WiFi.begin(cstring(first(args), ssid, 33));
+//  else WiFi.begin(cstring(first(args), ssid, 33), cstring(second(args), pass, 65));
+//  int result = WiFi.waitForConnectResult();
+//  if (result == WL_CONNECTED) return lispstring((char*)WiFi.localIP().toString().c_str());
+//  else if (result == WL_NO_SSID_AVAIL) error2(PSTR("network not found"));
+//  else if (result == WL_CONNECT_FAILED) error2(PSTR("connection failed"));
+//  else error2(PSTR("unable to connect"));
   return nil;
 }
 
@@ -6797,8 +6781,12 @@ builtin_t lookupbuiltin (char* c) {
     int entries = tablesize(n);
     end = end + entries;
     for (int i=0; i<entries; i++) {
+        const char *ps = table(n)[i].string;
+//        const char **pp = &(table(n)[i].string);
+        const char *p2 = *(&(table(n)[i].string));
       if (strcasecmp_P(c, (char*)pgm_read_ptr(&(table(n)[i].string))) == 0) {
-      return (builtin_t)(start + i); }
+        return (builtin_t)(start + i);
+      }
     }
   }
   return ENDFUNCTIONS;
@@ -7668,20 +7656,20 @@ void initgfx () {
 void setup () {
   Serial.begin(115200);
   int start = millis();
-  while ((millis() - start) < 5000) { if (Serial) break; }
+//  while ((millis() - start) < 5000) { if (Serial) break; }
   initworkspace();
   initenv();
   initsleep();
   initgfx();
 
-  printf("(defvar pinMode %d)\n", &pinMode);
-  printf("(defvar digitalWrite %d)\n", &digitalWrite);
+//  printf("(defvar pinMode %d)\n", &pinMode);
+//  printf("(defvar digitalWrite %d)\n", &digitalWrite);
   printf("(defvar test_cfun %d)\n", &test_cfun);
   printf("(defvar test_cfun1 %d)\n", &test_cfun1);
   printf("(defvar testClass %d)\n", &testClass);
 //    printf("(testClass.foo %d)\n", &TestClass::foo);
     // printf("(TestClass_foo %d)\n", &TestClass_foo);
-    printf("(defvar markUse %d)\n", &markUse);
+//    printf("(defvar markUse %d)\n", &markUse);
 
   pfstring(PSTR("uLisp 4.4b "), pserial); pln(pserial);
 }
@@ -7693,7 +7681,7 @@ void setup () {
 */
 void repl (object *env) {
   for (;;) {
-    randomSeed(micros());
+//    randomSeed(micros());
     gc(NULL, env);
     #if defined(printfreespace)
     pint(Freespace, pserial);
@@ -7745,5 +7733,13 @@ void ulispreset () {
   #if defined(lisplibrary)
   if (!tstflag(LIBRARYLOADED)) { setflag(LIBRARYLOADED); loadfromlibrary(NULL); }
   #endif
-  client.stop();
+//  client.stop();
+}
+
+int main (){
+    setup();
+
+    while (1){
+        loop();
+    }
 }

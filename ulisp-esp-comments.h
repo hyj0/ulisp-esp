@@ -1,17 +1,24 @@
 
+#include <cstdint>
+#include <zconf.h>
+#include <time.h>
+#include <cstring>
+#include <cstdio>
+#include <poll.h>
+
 typedef long int		intptr_t;
 
 #define ARDUINO_ESP32C3_DEV
 
 #define PROGMEM
 #define PGM_P const char *
-typedef unsigned int		uint32_t;
+//typedef unsigned int		uint32_t;
+//
+//typedef unsigned short int	uint16_t;
+//typedef unsigned char		uint8_t;
+//typedef  char		int8_t;
 
-typedef unsigned short int	uint16_t;
-typedef unsigned char		uint8_t;
-typedef  char		int8_t;
-
-#define NULL 0L
+//#define NULL 0L
 typedef unsigned long int	uintptr_t;
 
 #define PSTR
@@ -121,6 +128,8 @@ ANALOGREAD, REGISTER, FORMAT,
  };
 
 
+typedef long int64_t ;
+
 extern void pserial (char c);
 void pfl (pfun_t pfun);
 
@@ -141,11 +150,125 @@ extern uint8_t getminmax (builtin_t name);
 extern intptr_t lookupfn (builtin_t name);
 extern int listlength (object *list);
 extern void checkminmax (builtin_t name, int nargs);
+extern bool stringcompare (object *args, bool lt, bool gt, bool eq);
+extern object *eval (object *form, object *env);
+extern void pint (int i, pfun_t pfun);
+extern void pstr (char c);
 typedef bool boolean ;
+extern void printobject (object *form, pfun_t pfun);
+extern object *findpair (object *var, object *env);
+extern char *lookupdoc (builtin_t name);
+
+extern object *fn_abs (object *args, object *env) ;
+extern object *fn_acos (object *args, object *env) ;
+extern object *fn_asin (object *args, object *env) ;
+extern object *sp_withclient (object *args, object *env) ;
+extern object *fn_cos (object *args, object *env) ;
+extern object *fn_acos (object *args, object *env) ;
+extern object *fn_cosh (object *args, object *env) ;
+extern char *cstring (object *form, char *buffer, int buflen) ;
+extern object *fn_eval (object *args, object *env) ;
+extern object *eval (object *form, object *env) ;
+extern object *fn_exp (object *args, object *env) ;
+extern object *findpair (object *var, object *env) ;
+extern bool findsubstring (char *part, builtin_t name) ;
+extern object *fn_floor (object *args, object *env) ;
+extern object *fn_princtostring (object *args, object *env) ;
+extern int glibrary () ;
+extern int gserial () ;
+extern object *fn_log (object *args, object *env) ;
+extern char *lookupdoc (builtin_t name) ;
+extern object *sp_formillis (object *args, object *env) ;
+extern object *fn_millis (object *args, object *env) ;
+extern builtin_t lookupbuiltin (char* c) ;
+extern void pbuiltin (builtin_t name, pfun_t pfun) ;
+extern void pint (int i, pfun_t pfun) ;
+extern void pintbase (uint32_t i, uint8_t base, pfun_t pfun) ;
+extern void plispstr (symbol_t name, pfun_t pfun) ;
+extern void prin1object (object *form, pfun_t pfun) ;
+extern void printsymbol (object *form, pfun_t pfun) ;
+extern void pstr (char c) ;
+extern void plispstr (symbol_t name, pfun_t pfun) ;
+extern object *fn_random (object *args, object *env) ;
+extern int I2Cread () ;
+extern inline int spiread () ;
+extern inline int serial1read () ;
+extern inline int SDread () ;
+extern inline int WiFiread () ;
+extern void checkanalogread (int pin) ;
+extern object *fn_read (object *args, object *env) ;
+extern object *fn_digitalread (object *args, object *env) ;
+extern object *fn_analogread (object *args, object *env) ;
+extern object *read (gfun_t gfun) ;
+extern void repl (object *env) ;
+extern int myround (float number) ;
+extern object *fn_round (object *args, object *env) ;
+extern object *fn_wifiserver (object *args, object *env) ;
+extern object *fn_sin (object *args, object *env) ;
+extern object *fn_asin (object *args, object *env) ;
+extern object *fn_sinh (object *args, object *env) ;
+extern object *fn_sqrt (object *args, object *env) ;
+extern bool stringcompare (object *args, bool lt, bool gt, bool eq) ;
+extern int subwidthlist (object *form, int w) ;
+extern void supersub (object *form, int lm, int super, pfun_t pfun) ;
+extern unsigned int tablesize (int n) ;
+extern object *fn_tan (object *args, object *env) ;
+extern object *fn_atan (object *args, object *env) ;
+extern object *fn_tanh (object *args, object *env) ;
+extern void testescape () ;
+extern object *tf_progn (object *args, object *env) ;
+extern void ulispreset () ;
+extern object *fn_eval (object *args, object *env) ;
+extern object *eval (object *form, object *env) ;
+
+extern char* strstr(char *a, char *b) {
+    int len_a = strlen(a);
+    int len_b = strlen(b);
+    int i;
+
+    for (i = 0; i <= len_a - len_b; i++) {
+        if (strncmp(a + i, b, len_b) == 0) {
+            return a + i;
+        }
+    }
+
+    return NULL;
+}
+
+extern unsigned long millis() {
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    long ms = ts.tv_nsec / 1000000;
+    return ms;
+}
+
+extern unsigned long micros() {
+    return millis();
+}
+
+extern void yield(){
+
+}
+//extern int abs(int n);
+//extern float fmod(float fdividend,float fdivisor);
+extern int random(int integer){
+
+}
+extern char *itoa(int n,char *strx,int i) {
+    sprintf(strx, "%d", n);
+    return strx;
+}
+
+#define pgm_read_ptr(addr) *(addr)
+#define pgm_read_byte(addr) *((char *)addr)
+#define strlen_P strlen
+#define strcasecmp_P strcasecmp
 #define HIGH 1
 #define LOW 0
 
-extern void delay(int ms);
+extern void delay(int ms) {
+    usleep(1000*ms);
+}
 
 class SerialCL {
 public:
@@ -156,6 +279,34 @@ public:
     }
 
     void write(int i) {
+        putchar(i);
+        fsync(1);
+    }
 
+    void println(char *string) {
+        printf(string);
+    }
+
+    int read() {
+        if (available() == 0){
+            return 0;
+        }
+        int c = getchar();
+//        printf("%s %d %c\n", __FUNCTION__ , c, c);
+        return c;
+    }
+
+    int available() {
+        pollfd fds[1];
+        fds[0].fd = 0;
+        fds[0].events = POLLIN;
+        fds[0].revents = 0;
+        int ret = poll(fds, 1, 10);
+        if (ret == 0) {
+            return 0;
+        } else if (ret == 1) {
+            return 1;
+        }
+        return 0;
     }
 };
