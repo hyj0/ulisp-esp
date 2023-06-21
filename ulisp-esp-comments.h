@@ -86,7 +86,7 @@ PGM_P const streamname[] PROGMEM = {serialstream, i2cstream, spistream, sdstream
 
 // Typedefs
 
-typedef uint32_t symbol_t;
+typedef uint64_t symbol_t;
 
 typedef struct sobject {
   union {
@@ -95,7 +95,7 @@ typedef struct sobject {
       sobject *cdr;
     };
     struct {
-      unsigned int type;
+      uint64_t type;
       union {
         symbol_t name;
         int integer;
