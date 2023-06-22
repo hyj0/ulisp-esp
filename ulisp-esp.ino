@@ -5089,18 +5089,25 @@ int testVaFun(int count, ...){
     return result;
 }
 
-#define cf3_arg1(tail) cons(first(signArgs)==nil? number((int)arg0):(object*)arg0, (tail))
-#define cf3_arg2(tail) cf3_arg1(cons(second(signArgs)==nil? number((int)va_arg(args, void *)):(object*)va_arg(args, void *), (tail)))
-#define cf3_arg3(tail) cf3_arg1(cons( third(signArgs)==nil? number((int)va_arg(args, void *)):(object*)va_arg(args, void *), (tail)))
-#define cf3_arg4(tail) cf3_arg1(cons(my_nth(signArgs,3)==nil? number((int)va_arg(args, void *)):(object*)va_arg(args, void *), (tail)))
-#define cf3_arg5(tail) cf3_arg1(cons(my_nth(signArgs,4)==nil? number((int)va_arg(args, void *)):(object*)va_arg(args, void *), (tail)))
+#define va_arg1 object* argx0 = first(signArgs)==nil? number((long)arg0):(object*)arg0
+#define va_arg2 va_arg1;object* argx1 = second(signArgs)==nil? number((long)va_arg(args, void *)):(object*)va_arg(args, void *)
+#define va_arg3 va_arg2;object* argx2 = third(signArgs)==nil? number((long)va_arg(args, void *)):(object*)va_arg(args, void *)
+#define va_arg4 va_arg3;object* argx3 = my_nth(signArgs,3)==nil? number((long)va_arg(args, void *)):(object*)va_arg(args, void *)
+#define va_arg5 va_arg4;object* argx4 = my_nth(signArgs,4)==nil? number((long)va_arg(args, void *)):(object*)va_arg(args, void *)
 
-#define PRINT_STR_OBJECT(str, obj)  pstring(str, pserial);\
+
+#define cf3_arg1(tail) cons(argx0, (tail))
+#define cf3_arg2(tail) cf3_arg1(cons(argx1, (tail)))
+#define cf3_arg3(tail) cf3_arg2(cons(argx2, (tail)))
+#define cf3_arg4(tail) cf3_arg3(cons(argx3, (tail)))
+#define cf3_arg5(tail) cf3_arg4(cons(argx4, (tail)))
+
+#define PRINT_STR_OBJECT(str, obj)  if (call_c_fun_debug){ pstring((char*)str, pserial);\
                                     printobject(obj, pserial); \
-                                    pstring("\n", pserial);
+                                    pstring((char*)"\n", pserial);}
 object *getHookFunData0(const char *__cfunName){
     char *cfunName = (char *)__cfunName;
-    object *s = internlong("g_hook_fun");
+    object *s = internlong((char *)"g_hook_fun");
     object *v = findvalue(s, GlobalEnv);
     object *ret = assoc(internlong(cfunName), cdr(v));
     if (ret == nil){
@@ -5151,6 +5158,7 @@ void *__hookFunN0(void *arg0, ...){
     va_start(args, arg0);
     switch (signArgsLen) {
         case 1:{
+            va_arg1;
             object *lispArgs = cf3_arg1(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
@@ -5159,6 +5167,7 @@ void *__hookFunN0(void *arg0, ...){
             break;
         }
         case 2:{
+            va_arg2;
             object *lispArgs = cf3_arg2(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
@@ -5167,6 +5176,7 @@ void *__hookFunN0(void *arg0, ...){
             break;
         }
         case 3:{
+            va_arg3;
             object *lispArgs = cf3_arg3(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
@@ -5175,6 +5185,7 @@ void *__hookFunN0(void *arg0, ...){
             break;
         }
         case 4: {
+            va_arg4;
             object *lispArgs = cf3_arg4(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
@@ -5183,6 +5194,7 @@ void *__hookFunN0(void *arg0, ...){
             break;
         }
         case 5: {
+            va_arg5;
             object *lispArgs = cf3_arg5(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
@@ -5208,6 +5220,7 @@ void *__hookFunN1(void *arg0, ...){
     va_start(args, arg0);
     switch (signArgsLen) {
         case 1:{
+            va_arg1;
             object *lispArgs = cf3_arg1(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
@@ -5216,6 +5229,7 @@ void *__hookFunN1(void *arg0, ...){
             break;
         }
         case 2:{
+            va_arg2;
             object *lispArgs = cf3_arg2(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
@@ -5224,6 +5238,7 @@ void *__hookFunN1(void *arg0, ...){
             break;
         }
         case 3:{
+            va_arg3;
             object *lispArgs = cf3_arg3(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
@@ -5232,6 +5247,7 @@ void *__hookFunN1(void *arg0, ...){
             break;
         }
         case 4: {
+            va_arg4;
             object *lispArgs = cf3_arg4(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
@@ -5240,6 +5256,7 @@ void *__hookFunN1(void *arg0, ...){
             break;
         }
         case 5: {
+            va_arg5;
             object *lispArgs = cf3_arg5(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
@@ -5265,6 +5282,7 @@ void *__hookFunN2(void *arg0, ...){
     va_start(args, arg0);
     switch (signArgsLen) {
         case 1:{
+            va_arg1;
             object *lispArgs = cf3_arg1(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
@@ -5273,6 +5291,7 @@ void *__hookFunN2(void *arg0, ...){
             break;
         }
         case 2:{
+            va_arg2;
             object *lispArgs = cf3_arg2(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
@@ -5281,6 +5300,7 @@ void *__hookFunN2(void *arg0, ...){
             break;
         }
         case 3:{
+            va_arg3;
             object *lispArgs = cf3_arg3(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
@@ -5289,6 +5309,7 @@ void *__hookFunN2(void *arg0, ...){
             break;
         }
         case 4: {
+            va_arg4;
             object *lispArgs = cf3_arg4(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
@@ -5297,6 +5318,7 @@ void *__hookFunN2(void *arg0, ...){
             break;
         }
         case 5: {
+            va_arg5;
             object *lispArgs = cf3_arg5(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
@@ -5844,7 +5866,12 @@ object *sp_withclient (object *args, object *env) {
   client.stop();
   return result;
 }
-
+int getWifiServerConnect(){
+    client = server.available();
+    if (client.connected())
+        return 1;
+    return 0;
+}
 /*
   (available stream)
   Returns the number of bytes available for reading from the wifi-stream, or zero if no bytes are available.
@@ -8205,6 +8232,7 @@ void printAddr(){
     printf("(defvar __hookFunN1 %d)\n", &__hookFunN1);
     printf("(defvar __hookFunN2 %d)\n", &__hookFunN2);
     printf("(defvar getAllHookFunList %d)\n", &getAllHookFunList);
+    printf("(defvar getWifiServerConnect %d)\n", &getWifiServerConnect);
 
     printf("(defvar markUse %d)\n", &markUse);
     markUse();
