@@ -280,7 +280,7 @@ public:
 
     void write(int i) {
         putchar(i);
-        fsync(1);
+        fflush(stdout);
     }
 
     void println(char *string) {
