@@ -5,6 +5,11 @@
 #include <cstring>
 #include <cstdio>
 #include <poll.h>
+#include <dlfcn.h>
+
+extern "C"{
+extern int fcntl (int __fd, int __cmd, ...);
+}
 
 typedef long int		intptr_t;
 
@@ -271,9 +276,17 @@ extern void delay(int ms) {
 }
 
 class SerialCL {
+    int lastC = -1;
 public:
-    SerialCL(){}
-
+    SerialCL(){
+        lastC = -1;
+        setNonBlocking(0);
+    }
+// 将文件描述符设置为非阻塞模式
+    void setNonBlocking(int fd) {
+        int flags = fcntl(fd, 3, 0);
+        fcntl(fd, 4, flags | 04000);
+    }
     void begin(int i) {
 
     }
@@ -288,15 +301,29 @@ public:
     }
 
     int read() {
-        if (available() == 0){
-            return 0;
+        if (lastC > 0){
+            int temp = lastC;
+            lastC = -1;
+            return temp;
         }
         int c = getchar();
-//        printf("%s %d %c\n", __FUNCTION__ , c, c);
+        if (c < 0){
+            return '\n';
+        }
+        //printf("%s:%d %d %c\n", __FILE__, __LINE__ , c, c);
         return c;
     }
 
     int available() {
+      if (lastC > 0){
+	    return 1;
+      }
+        int c = getchar();
+        if (c > 0){
+	  //printf("%s:%d %d %c\n", __FILE__, __LINE__ , c, c);
+            lastC = c;
+            return 1;
+        }
         pollfd fds[1];
         fds[0].fd = 0;
         fds[0].events = POLLIN;
