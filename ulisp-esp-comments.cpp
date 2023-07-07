@@ -275,7 +275,7 @@ void errorsub (symbol_t fname, PGM_P string) {
   pfstring(string, pserial);
 }
 
-void errorend () { gReadEnv=NULL; gEvalEnv = NULL; GCStack = NULL; longjmp(*handler, 1); }
+void errorend () { gRead2Flag = 0; gcAllowed=1; gReadEnv=NULL; gEvalEnv = NULL; GCStack = NULL; longjmp(*handler, 1); }
 
 /*
   errorsym - prints an error message and reenters the REPL.
@@ -583,7 +583,7 @@ void sweep () {
   followed by sweep() to free unused objects.
 */
 void gc (object *form, object *env) {
-    if (gcAllowed == 0)
+    if (gcAllowed < 1)
         return;
 
   #if defined(printgcs)
@@ -5781,6 +5781,7 @@ object *sp_error (object *args, object *env) {
     pln(pserial);
   }
   GCStack = NULL;
+  gRead2Flag = 0; gcAllowed=1;
   longjmp(*handler, 1);
 }
 
@@ -7361,7 +7362,7 @@ bool keywordp (object *obj) {
 /*
   eval - the main Lisp evaluator
 */
-object *eval (object *form, object *env) {
+object *__eval (object *form, object *env) {
   static unsigned long start = 0;
   int TC=0;
   EVAL:
@@ -7520,6 +7521,11 @@ object *eval (object *form, object *env) {
   error(PSTR("illegal function"), fname); return nil;
 }
 
+object *eval (object *form, object *env) {
+    gEvalEnv = env;
+    object *result = __eval(form, env);
+    gEvalEnv = NULL;
+}
 // Print functions
 
 
@@ -8087,43 +8093,34 @@ object *nextitem (gfun_t gfun) {
   return internlong(buffer);
 }
 
+#define READREST_WITH_GC(action) \
+    if (head != NULL) { \
+            push(head, gReadEnv);if (gRead2Flag) {gc(nil, nil);} \
+        } \
+      action; \
+        if (head != NULL) { \
+          pop(gReadEnv); \
+      }
+
 /*
   readrest - reads the remaining tokens from the specified stream
 */
 object *readrest (gfun_t gfun) {
     //调用nextitem时不允许gc
-    gcAllowed = 0;
+    gcAllowed--;
   object *item = nextitem(gfun);
-    gcAllowed = 1;
+    gcAllowed++;
   object *head = NULL;
   object *tail = NULL;
 
   while (item != (object *)KET) {
     if (item == (object *)BRA) {
-        if (head != NULL) {
-            push(head, gReadEnv);if (gRead2Flag) {gc(nil, nil);}
-        }
-      item = readrest(gfun);
-        if (head != NULL) {
-          pop(gReadEnv);
-      }
+        READREST_WITH_GC(item = readrest(gfun));
     } else if (item == (object *)QUO) {
-        if (head != NULL) {
-            push(head, gReadEnv);if (gRead2Flag) {gc(nil, nil);}
-        }
-      item = cons(bsymbol(QUOTE), cons(read(gfun), NULL));
-        if (head != NULL) {
-            pop(gReadEnv);
-        }
+        READREST_WITH_GC(item = cons(bsymbol(QUOTE), cons(read(gfun), NULL)));
     } else if (item == (object *)DOT) {
-        if (head != NULL) {
-            push(head, gReadEnv);if (gRead2Flag) {gc(nil, nil);}
-        }
-      tail->cdr = read(gfun);
-      if (readrest(gfun) != NULL) error2(PSTR("malformed list"));
-      if (head != NULL) {
-            pop(gReadEnv);gc(nil, nil);
-        }
+        READREST_WITH_GC(tail->cdr = read(gfun));
+        READREST_WITH_GC(if (readrest(gfun) != NULL) error2(PSTR("malformed list")));
       return head;
     } else {
       object *cell = cons(item, NULL);
@@ -8131,11 +8128,7 @@ object *readrest (gfun_t gfun) {
       else tail->cdr = cell;
       tail = cell;
       //put head to gReadEnv
-      push(head, gReadEnv);if (gRead2Flag) {gc(nil, nil);}
-      gcAllowed = 0;
-      item = nextitem(gfun);
-      gcAllowed = 1;
-      pop(gReadEnv);
+      READREST_WITH_GC(gcAllowed--;item = nextitem(gfun);gcAllowed++;);
     }
   }
   return head;
@@ -8145,9 +8138,9 @@ object *readrest (gfun_t gfun) {
   read - recursively reads a Lisp object from the stream gfun and returns it
 */
 object *read (gfun_t gfun) {
-    gcAllowed=0;
+    gcAllowed--;
   object *item = nextitem(gfun);
-      gcAllowed=1;
+      gcAllowed++;
   if (item == (object *)KET) error2(PSTR("incomplete list"));
   if (item == (object *)BRA) return readrest(gfun);
   if (item == (object *)DOT) return read(gfun);
