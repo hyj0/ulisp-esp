@@ -217,10 +217,10 @@ unsigned int I2Ccount;
 unsigned int TraceFn[TRACEMAX];
 unsigned int TraceDepth[TRACEMAX];
 builtin_t Context;
+//
+object *gWorkStack[WORKSPACESIZE];
+int gWorkStackIndex = 0;
 
-int gRead2Flag = 0;
-object *gReadEnv = NULL; //read tmp env
-int gcAllowed = 1;
 object *gEvalEnv = NULL; //eval env
 object *Events = NULL;
 object *GlobalEnv;
@@ -275,7 +275,7 @@ void errorsub (symbol_t fname, PGM_P string) {
   pfstring(string, pserial);
 }
 
-void errorend () { gRead2Flag = 0; gcAllowed=1; gReadEnv=NULL; gEvalEnv = NULL; GCStack = NULL; longjmp(*handler, 1); }
+void errorend () { gEvalEnv = NULL; GCStack = NULL; longjmp(*handler, 1); }
 
 /*
   errorsym - prints an error message and reenters the REPL.
@@ -388,6 +388,7 @@ object *myalloc () {
       error2(PSTR("no free node"));
   }
     cdr(temp) = NULL;
+  gWorkStack[gWorkStackIndex++] = temp;
   return temp;
 }
 
@@ -583,15 +584,15 @@ void sweep () {
   followed by sweep() to free unused objects.
 */
 void gc (object *form, object *env) {
-    if (gcAllowed < 1)
-        return;
-
   #if defined(printgcs)
   int start = Freespace;
   #endif
+  //mark gWorkStack
+    for (int i = 0; i < gWorkStackIndex; ++i) {
+        markobject(gWorkStack[i]);
+    }
   markobject(tee);
     markobject(Events);
-    markobject(gReadEnv);
     markobject(gEvalEnv);
   markobject(GlobalEnv);
   markobject(GCStack);
@@ -5715,10 +5716,12 @@ object *sp_unwindprotect (object *args, object *env) {
   object *protected_form = first(args);
   object *result;
 
+  int currentIndex = gWorkStackIndex;
   bool signaled = false;
   if (!setjmp(dynamic_handler)) {
     result = eval(protected_form, env);
   } else {
+      gWorkStackIndex = currentIndex;
     GCStack = current_GCStack;
     signaled = true;
   }
@@ -5730,6 +5733,7 @@ object *sp_unwindprotect (object *args, object *env) {
     if (tstflag(RETURNFLAG)) break;
     protective_forms = cdr(protective_forms);
   }
+  gWorkStackIndex = currentIndex;
 
   if (!signaled) return result;
   GCStack = NULL;
@@ -5750,6 +5754,8 @@ object *sp_ignoreerrors (object *args, object *env) {
   bool muffled = tstflag(MUFFLEERRORS);
   setflag(MUFFLEERRORS);
   bool signaled = false;
+  //记录gWorkspace中的GCStack
+  int currentIndex = gWorkStackIndex;
   if (!setjmp(dynamic_handler)) {
     while (args != NULL) {
       result = eval(car(args), env);
@@ -5757,6 +5763,7 @@ object *sp_ignoreerrors (object *args, object *env) {
       args = cdr(args);
     }
   } else {
+      gWorkStackIndex = currentIndex;
     GCStack = current_GCStack;
     signaled = true;
   }
@@ -5781,8 +5788,7 @@ object *sp_error (object *args, object *env) {
     pln(pserial);
   }
   GCStack = NULL;
-  gRead2Flag = 0; gcAllowed=1;
-  longjmp(*handler, 1);
+    longjmp(*handler, 1);
 }
 
 // Wi-Fi
@@ -7522,9 +7528,12 @@ object *__eval (object *form, object *env) {
 }
 
 object *eval (object *form, object *env) {
+    int currentIndex = gWorkStackIndex;
     gEvalEnv = env;
     object *result = __eval(form, env);
     gEvalEnv = NULL;
+    gWorkStackIndex = currentIndex;
+    return result;
 }
 // Print functions
 
@@ -8093,42 +8102,29 @@ object *nextitem (gfun_t gfun) {
   return internlong(buffer);
 }
 
-#define READREST_WITH_GC(action) \
-    if (head != NULL) { \
-            push(head, gReadEnv);if (gRead2Flag) {gc(nil, nil);} \
-        } \
-      action; \
-        if (head != NULL) { \
-          pop(gReadEnv); \
-      }
-
 /*
   readrest - reads the remaining tokens from the specified stream
 */
 object *readrest (gfun_t gfun) {
-    //调用nextitem时不允许gc
-    gcAllowed--;
   object *item = nextitem(gfun);
-    gcAllowed++;
   object *head = NULL;
   object *tail = NULL;
 
   while (item != (object *)KET) {
     if (item == (object *)BRA) {
-        READREST_WITH_GC(item = readrest(gfun));
+        item = readrest(gfun);
     } else if (item == (object *)QUO) {
-        READREST_WITH_GC(item = cons(bsymbol(QUOTE), cons(read(gfun), NULL)));
+        item = cons(bsymbol(QUOTE), cons(read(gfun), __null));
     } else if (item == (object *)DOT) {
-        READREST_WITH_GC(tail->cdr = read(gfun));
-        READREST_WITH_GC(if (readrest(gfun) != NULL) error2(PSTR("malformed list")));
+        tail->cdr = read(gfun);
+        if (readrest(gfun) != __null)error2(("malformed list"));
       return head;
     } else {
       object *cell = cons(item, NULL);
       if (head == NULL) head = cell;
       else tail->cdr = cell;
       tail = cell;
-      //put head to gReadEnv
-      READREST_WITH_GC(gcAllowed--;item = nextitem(gfun);gcAllowed++;);
+      item = nextitem(gfun);
     }
   }
   return head;
@@ -8138,9 +8134,7 @@ object *readrest (gfun_t gfun) {
   read - recursively reads a Lisp object from the stream gfun and returns it
 */
 object *read (gfun_t gfun) {
-    gcAllowed--;
   object *item = nextitem(gfun);
-      gcAllowed++;
   if (item == (object *)KET) error2(PSTR("incomplete list"));
   if (item == (object *)BRA) return readrest(gfun);
   if (item == (object *)DOT) return read(gfun);
@@ -8148,9 +8142,7 @@ object *read (gfun_t gfun) {
   return item;
 }
 object *read2 (gfun_t gfun) {
-    gRead2Flag = 1;
     object *ret = read(gfun);
-    gRead2Flag = 0;
     return ret;
 }
 // Setup
@@ -8245,6 +8237,7 @@ void setup () {
 void repl (object *env) {
   for (;;) {
 //    randomSeed(micros());
+    gWorkStackIndex = 0;
     gc(NULL, env);
     #if defined(printfreespace)
     pint(Freespace, pserial);
@@ -8298,6 +8291,7 @@ void ulispreset () {
   if (!tstflag(LIBRARYLOADED)) { setflag(LIBRARYLOADED); loadfromlibrary(NULL); }
   #endif
 //  client.stop();
+ gWorkStackIndex = 0;
 }
 
 int main (){
