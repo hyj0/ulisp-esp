@@ -10,7 +10,7 @@
 const char LispLibrary[] PROGMEM = "";
 
 // Compile options
-
+#define WORK_STACK_SIZE 2048
 #define resetautorun
 #define printfreespace
 // #define printgcs
@@ -127,7 +127,7 @@ Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, MOSI, SCK, TFT_RST);
   #define LED_BUILTIN 13
 
 #elif defined(ARDUINO_ESP32C3_DEV)
-  #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
+  #define WORKSPACESIZE (9216-(WORK_STACK_SIZE*2)/8-SDSIZE)            /* Cells (8*bytes) */
   #define LITTLEFS
   #include "FS.h"
   #include <LittleFS.h>
@@ -268,7 +268,11 @@ unsigned int I2Ccount;
 unsigned int TraceFn[TRACEMAX];
 unsigned int TraceDepth[TRACEMAX];
 builtin_t Context;
+//
+uint16_t gWorkStack[WORK_STACK_SIZE];
+int gWorkStackIndex = 0;
 
+object *gEvalEnv = NULL; //eval env
 object *Events = NULL;
 object *GlobalEnv;
 object *GCStack = NULL;
@@ -321,7 +325,7 @@ void errorsub (symbol_t fname, PGM_P string) {
   pfstring(string, pserial);
 }
 
-void errorend () { GCStack = NULL; longjmp(*handler, 1); }
+void errorend () { gEvalEnv = NULL; GCStack = NULL; longjmp(*handler, 1); }
 
 /*
   errorsym - prints an error message and reenters the REPL.
@@ -425,6 +429,11 @@ void initworkspace () {
 object *myalloc () {
   if (Freespace == 0) error2(PSTR("no room"));
   object *temp = Freelist;
+  if (gWorkStackIndex < WORK_STACK_SIZE){
+      gWorkStack[gWorkStackIndex++] = temp-Workspace;
+  } else {
+      error2(PSTR("gWorkStackIndex max!!"));
+  }
   Freelist = cdr(Freelist);
   Freespace--;
   return temp;
@@ -622,6 +631,11 @@ void gc (object *form, object *env) {
   #if defined(printgcs)
   int start = Freespace;
   #endif
+    //mark gWorkStack
+    for (int i = 0; i < gWorkStackIndex; ++i) {
+        markobject(Workspace+gWorkStack[i]);
+    }
+    markobject(gEvalEnv);
   markobject(tee);
   markobject(GlobalEnv);
   markobject(GCStack);
@@ -2452,6 +2466,7 @@ inline void handleInterrupts (unsigned long nMsTime) {
         push(arg, GCStack);
         if (pair != NULL) apply(cdr(pair), arg, NULL);
         pop(GCStack);
+        gWorkStackIndex=0;gEvalEnv = NULL;//reset
         gc(NULL, NULL);
       }
     }
@@ -5124,7 +5139,7 @@ void *__hookFun00(){
     //ret=addr, sign, fun
     object *sign = second(ret);
     bool retTypeIsObjectFlag = (first(sign) != nil);
-    object *lret = apply(third(ret), nil, nil);
+    object *lret = apply(third(ret), nil, gEvalEnv);
     return retTypeIsObjectFlag?lret:get_value(lret);
 }
 void *__hookFun01(){
@@ -5133,7 +5148,7 @@ void *__hookFun01(){
     //ret=addr, sign, fun
     object *sign = second(ret);
     bool retTypeIsObjectFlag = (first(sign) != nil);
-    object *lret = apply(third(ret), nil, nil);
+    object *lret = apply(third(ret), nil, gEvalEnv);
     return retTypeIsObjectFlag?lret:get_value(lret);
 }
 void *__hookFun02(){
@@ -5142,7 +5157,7 @@ void *__hookFun02(){
     //ret=addr, sign, fun
     object *sign = second(ret);
     bool retTypeIsObjectFlag = (first(sign) != nil);
-    object *lret = apply(third(ret), nil, nil);
+    object *lret = apply(third(ret), nil, gEvalEnv);
     return retTypeIsObjectFlag?lret:get_value(lret);
 }
 
@@ -5162,7 +5177,7 @@ void *__hookFunN0(void *arg0, ...){
             object *lispArgs = cf3_arg1(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
-            object *lret = apply(third(ret), lispArgs, nil);
+            object *lret = apply(third(ret), lispArgs, gEvalEnv);
             return retTypeIsObjectFlag?lret:get_value(lret);
             break;
         }
@@ -5171,7 +5186,7 @@ void *__hookFunN0(void *arg0, ...){
             object *lispArgs = cf3_arg2(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
-            object *lret = apply(third(ret), lispArgs, nil);
+            object *lret = apply(third(ret), lispArgs, gEvalEnv);
             return retTypeIsObjectFlag?lret:get_value(lret);
             break;
         }
@@ -5180,7 +5195,7 @@ void *__hookFunN0(void *arg0, ...){
             object *lispArgs = cf3_arg3(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
-            object *lret = apply(third(ret), lispArgs, nil);
+            object *lret = apply(third(ret), lispArgs, gEvalEnv);
             return retTypeIsObjectFlag?lret:get_value(lret);
             break;
         }
@@ -5189,7 +5204,7 @@ void *__hookFunN0(void *arg0, ...){
             object *lispArgs = cf3_arg4(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
-            object *lret = apply(third(ret), lispArgs, nil);
+            object *lret = apply(third(ret), lispArgs, gEvalEnv);
             return retTypeIsObjectFlag?lret:get_value(lret);
             break;
         }
@@ -5198,7 +5213,7 @@ void *__hookFunN0(void *arg0, ...){
             object *lispArgs = cf3_arg5(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
-            object *lret = apply(third(ret), lispArgs, nil);
+            object *lret = apply(third(ret), lispArgs, gEvalEnv);
             return retTypeIsObjectFlag?lret:get_value(lret);
             break;
         }
@@ -5224,7 +5239,7 @@ void *__hookFunN1(void *arg0, ...){
             object *lispArgs = cf3_arg1(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
-            object *lret = apply(third(ret), lispArgs, nil);
+            object *lret = apply(third(ret), lispArgs, gEvalEnv);
             return retTypeIsObjectFlag?lret:get_value(lret);
             break;
         }
@@ -5233,7 +5248,7 @@ void *__hookFunN1(void *arg0, ...){
             object *lispArgs = cf3_arg2(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
-            object *lret = apply(third(ret), lispArgs, nil);
+            object *lret = apply(third(ret), lispArgs, gEvalEnv);
             return retTypeIsObjectFlag?lret:get_value(lret);
             break;
         }
@@ -5242,7 +5257,7 @@ void *__hookFunN1(void *arg0, ...){
             object *lispArgs = cf3_arg3(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
-            object *lret = apply(third(ret), lispArgs, nil);
+            object *lret = apply(third(ret), lispArgs, gEvalEnv);
             return retTypeIsObjectFlag?lret:get_value(lret);
             break;
         }
@@ -5251,7 +5266,7 @@ void *__hookFunN1(void *arg0, ...){
             object *lispArgs = cf3_arg4(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
-            object *lret = apply(third(ret), lispArgs, nil);
+            object *lret = apply(third(ret), lispArgs, gEvalEnv);
             return retTypeIsObjectFlag?lret:get_value(lret);
             break;
         }
@@ -5260,7 +5275,7 @@ void *__hookFunN1(void *arg0, ...){
             object *lispArgs = cf3_arg5(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
-            object *lret = apply(third(ret), lispArgs, nil);
+            object *lret = apply(third(ret), lispArgs, gEvalEnv);
             return retTypeIsObjectFlag?lret:get_value(lret);
             break;
         }
@@ -5286,7 +5301,7 @@ void *__hookFunN2(void *arg0, ...){
             object *lispArgs = cf3_arg1(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
-            object *lret = apply(third(ret), lispArgs, nil);
+            object *lret = apply(third(ret), lispArgs, gEvalEnv);
             return retTypeIsObjectFlag?lret:get_value(lret);
             break;
         }
@@ -5295,7 +5310,7 @@ void *__hookFunN2(void *arg0, ...){
             object *lispArgs = cf3_arg2(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
-            object *lret = apply(third(ret), lispArgs, nil);
+            object *lret = apply(third(ret), lispArgs, gEvalEnv);
             return retTypeIsObjectFlag?lret:get_value(lret);
             break;
         }
@@ -5304,7 +5319,7 @@ void *__hookFunN2(void *arg0, ...){
             object *lispArgs = cf3_arg3(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
-            object *lret = apply(third(ret), lispArgs, nil);
+            object *lret = apply(third(ret), lispArgs, gEvalEnv);
             return retTypeIsObjectFlag?lret:get_value(lret);
             break;
         }
@@ -5313,7 +5328,7 @@ void *__hookFunN2(void *arg0, ...){
             object *lispArgs = cf3_arg4(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
-            object *lret = apply(third(ret), lispArgs, nil);
+            object *lret = apply(third(ret), lispArgs, gEvalEnv);
             return retTypeIsObjectFlag?lret:get_value(lret);
             break;
         }
@@ -5322,7 +5337,7 @@ void *__hookFunN2(void *arg0, ...){
             object *lispArgs = cf3_arg5(nil);
             PRINT_STR_OBJECT("lispArgs:", lispArgs);
 
-            object *lret = apply(third(ret), lispArgs, nil);
+            object *lret = apply(third(ret), lispArgs, gEvalEnv);
             return retTypeIsObjectFlag?lret:get_value(lret);
             break;
         }
@@ -5763,11 +5778,12 @@ object *sp_unwindprotect (object *args, object *env) {
   handler = &dynamic_handler;
   object *protected_form = first(args);
   object *result;
-
+    int currentIndex = gWorkStackIndex;
   bool signaled = false;
   if (!setjmp(dynamic_handler)) {
     result = eval(protected_form, env);
   } else {
+      gWorkStackIndex = currentIndex;
     GCStack = current_GCStack;
     signaled = true;
   }
@@ -5779,7 +5795,7 @@ object *sp_unwindprotect (object *args, object *env) {
     if (tstflag(RETURNFLAG)) break;
     protective_forms = cdr(protective_forms);
   }
-
+    gWorkStackIndex = currentIndex;
   if (!signaled) return result;
   GCStack = NULL;
   longjmp(*handler, 1);
@@ -5799,6 +5815,8 @@ object *sp_ignoreerrors (object *args, object *env) {
   bool muffled = tstflag(MUFFLEERRORS);
   setflag(MUFFLEERRORS);
   bool signaled = false;
+
+    int currentIndex = gWorkStackIndex;
   if (!setjmp(dynamic_handler)) {
     while (args != NULL) {
       result = eval(car(args), env);
@@ -5806,6 +5824,7 @@ object *sp_ignoreerrors (object *args, object *env) {
       args = cdr(args);
     }
   } else {
+      gWorkStackIndex = currentIndex;
     GCStack = current_GCStack;
     signaled = true;
   }
@@ -7411,7 +7430,7 @@ bool keywordp (object *obj) {
 /*
   eval - the main Lisp evaluator
 */
-object *eval (object *form, object *env) {
+object *__eval (object *form, object *env) {
   static unsigned long start = 0;
   int TC=0;
   EVAL:
@@ -7423,6 +7442,7 @@ object *eval (object *form, object *env) {
 #else
   (void) start;
 #endif
+    gEvalEnv = env;
   // Enough space?
   if (Freespace <= WORKSPACESIZE>>4) gc(form, env);
   // Escape
@@ -7469,10 +7489,10 @@ object *eval (object *form, object *env) {
         else if (cdr(assign) == NULL) push(cons(first(assign),nil), newenv);
         else push(cons(first(assign),eval(second(assign),env)), newenv);
         car(GCStack) = newenv;
-        if (name == LETSTAR) env = newenv;
+        if (name == LETSTAR) gEvalEnv = env = newenv;
         assigns = cdr(assigns);
       }
-      env = newenv;
+      gEvalEnv = env = newenv;
       pop(GCStack);
       form = tf_progn(forms,env);
       TC = TCstart;
@@ -7485,7 +7505,7 @@ object *eval (object *form, object *env) {
       while (env != NULL) {
         object *pair = first(env);
         if (pair != NULL) push(pair, envcopy);
-        env = cdr(env);
+        gEvalEnv = env = cdr(env);
       }
       return cons(bsymbol(CLOSURE), cons(envcopy,args));
     }
@@ -7568,7 +7588,14 @@ object *eval (object *form, object *env) {
   }
   error(PSTR("illegal function"), fname); return nil;
 }
-
+object *eval (object *form, object *env) {
+    int currentIndex = gWorkStackIndex;
+    gEvalEnv = env;
+    object *result = __eval(form, env);
+    gEvalEnv = NULL;
+    gWorkStackIndex = currentIndex;
+    return result;
+}
 // Print functions
 
 
@@ -8233,6 +8260,12 @@ void printAddr(){
     printf("(defvar __hookFunN2 %d)\n", &__hookFunN2);
     printf("(defvar getAllHookFunList %d)\n", &getAllHookFunList);
     printf("(defvar getWifiServerConnect %d)\n", &getWifiServerConnect);
+    printf("(defvar stringlength-addr %ld)\n", &stringlength);
+    printf("(defvar printobject-addr %ld)\n", &printobject);
+    printf("(defvar getMemChar %ld)\n", &getMemChar);
+    printf("(defvar LastChar %ld)\n", &LastChar);
+    printf("(defvar Flags %ld)\n", &Flags);
+    printf("(defvar memset %ld)\n", &memset);
 
     printf("(defvar markUse %d)\n", &markUse);
     markUse();
@@ -8262,6 +8295,7 @@ void setup () {
 void repl (object *env) {
   for (;;) {
     randomSeed(micros());
+      gWorkStackIndex = 0;gEvalEnv = NULL;
     gc(NULL, env);
     #if defined(printfreespace)
     pint(Freespace, pserial);
