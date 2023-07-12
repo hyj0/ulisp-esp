@@ -68,7 +68,7 @@ Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, MOSI, SCK, TFT_RST);
 
 #define WORDALIGNED __attribute__((aligned (4)))
 #define BUFFERSIZE 36  // Number of bits+4
-
+#define WORKSTACKSIZE 2048
 #if defined(ESP8266)
   #define WORKSPACESIZE (3928-SDSIZE)     /* Cells (8*bytes) */
   #define EEPROMSIZE 4096                 /* Bytes available for EEPROM */
@@ -135,7 +135,7 @@ Adafruit_ST7789 tft = Adafruit_ST7789(TFT_CS, TFT_DC, MOSI, SCK, TFT_RST);
   #define LED_BUILTIN 13
 
 #elif defined(ARDUINO_ESP32C3_DEV)
-  #define WORKSPACESIZE (9216-SDSIZE)            /* Cells (8*bytes) */
+  #define WORKSPACESIZE (9216-(WORKSTACKSIZE*2/8)-SDSIZE)            /* Cells (8*bytes) */
 //  #define LITTLEFS
 //  #include "FS.h"
 //  #include <LittleFS.h>
@@ -218,7 +218,7 @@ unsigned int TraceFn[TRACEMAX];
 unsigned int TraceDepth[TRACEMAX];
 builtin_t Context;
 //
-object *gWorkStack[WORKSPACESIZE];
+unsigned short  gWorkStack[WORKSTACKSIZE];
 int gWorkStackIndex = 0;
 
 object *gEvalEnv = NULL; //eval env
@@ -381,6 +381,11 @@ object *myalloc () {
       error2(PSTR("no room"));
   }
   object *temp = Freelist;
+  if (gWorkStackIndex >= WORKSTACKSIZE) {
+      error2(PSTR("workstack overflow!!\n"));
+  } else {
+      gWorkStack[gWorkStackIndex++] = temp-Workspace;
+  }
   Freelist = cdr(Freelist);
   Freespace--;
   if (Freelist == NULL && Freespace != 0) {
@@ -388,7 +393,6 @@ object *myalloc () {
       error2(PSTR("no free node"));
   }
     cdr(temp) = NULL;
-  gWorkStack[gWorkStackIndex++] = temp;
   return temp;
 }
 
@@ -589,7 +593,7 @@ void gc (object *form, object *env) {
   #endif
   //mark gWorkStack
     for (int i = 0; i < gWorkStackIndex; ++i) {
-        markobject(gWorkStack[i]);
+        markobject(Workspace+gWorkStack[i]);
     }
   markobject(tee);
     markobject(Events);
@@ -600,7 +604,7 @@ void gc (object *form, object *env) {
   markobject(env);
   sweep();
   #if defined(printgcs)
-  pfl(pserial); pserial('{'); pint(Freespace - start, pserial); pserial('}');
+  pfl(pserial); pserial('{'); pint(Freespace - start, pserial); pserial('-');pint(gWorkStackIndex, pserial); pserial('}');
   #endif
 }
 
@@ -2432,6 +2436,8 @@ inline void handleInterrupts (unsigned long nMsTime) {
                 push(arg, GCStack);
                 if (pair != NULL) apply(cdr(pair), arg, NULL);
                 pop(GCStack);
+                gWorkStackIndex = 0;
+                gEvalEnv = NULL;
                 gc(NULL, NULL);
             }
         }
@@ -8238,6 +8244,7 @@ void repl (object *env) {
   for (;;) {
 //    randomSeed(micros());
     gWorkStackIndex = 0;
+    gEvalEnv = NULL;
     gc(NULL, env);
     #if defined(printfreespace)
     pint(Freespace, pserial);
