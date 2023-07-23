@@ -17,7 +17,7 @@ const char LispLibrary[] PROGMEM = "";
 // #define lisplibrary
 // #define lineeditor
 // #define vt100
-// #define extensions
+#define extensions
 
 // Includes
 
@@ -274,6 +274,7 @@ unsigned int TraceFn[TRACEMAX];
 unsigned int TraceDepth[TRACEMAX];
 builtin_t Context;
 
+object *gEvalEnv = NULL; //eval env
 object *GlobalEnv;
 object *GCStack = NULL;
 object *GlobalString;
@@ -304,7 +305,7 @@ void errorsub (symbol_t fname, PGM_P string) {
   pfstring(string, pserial);
 }
 
-void errorend () { GCStack = NULL; longjmp(*handler, 1); }
+void errorend () { gEvalEnv = NULL; GCStack = NULL; longjmp(*handler, 1); }
 
 void errorsym (symbol_t fname, PGM_P string, object *symbol) {
   if (!tstflag(MUFFLEERRORS)) {
@@ -528,6 +529,7 @@ void gc (object *form, object *env) {
   #if defined(printgcs)
   int start = Freespace;
   #endif
+    markobject(gEvalEnv);
   markobject(tee);
   markobject(GlobalEnv);
   markobject(GCStack);
@@ -5564,7 +5566,7 @@ bool keywordp (object *obj) {
 
 // Main evaluator
 
-object *eval (object *form, object *env) {
+object *__eval (object *form, object *env) {
   static unsigned long start = 0;
   int TC=0;
   EVAL:
@@ -5576,6 +5578,7 @@ object *eval (object *form, object *env) {
 #else
   (void) start;
 #endif
+    gEvalEnv = env;
   // Enough space?
   if (Freespace <= WORKSPACESIZE>>4) gc(form, env);
   // Escape
@@ -5622,10 +5625,10 @@ object *eval (object *form, object *env) {
         else if (cdr(assign) == NULL) push(cons(first(assign),nil), newenv);
         else push(cons(first(assign),eval(second(assign),env)), newenv);
         car(GCStack) = newenv;
-        if (name == LETSTAR) env = newenv;
+        if (name == LETSTAR) gEvalEnv = env = newenv;
         assigns = cdr(assigns);
       }
-      env = newenv;
+      gEvalEnv = env = newenv;
       pop(GCStack);
       form = tf_progn(forms,env);
       TC = TCstart;
@@ -5638,7 +5641,7 @@ object *eval (object *form, object *env) {
       while (env != NULL) {
         object *pair = first(env);
         if (pair != NULL) push(pair, envcopy);
-        env = cdr(env);
+        gEvalEnv = env = cdr(env);
       }
       return cons(bsymbol(CLOSURE), cons(envcopy,args));
     }
@@ -5721,7 +5724,12 @@ object *eval (object *form, object *env) {
   }
   error(PSTR("illegal function"), fname); return nil;
 }
-
+object *eval (object *form, object *env) {
+    gEvalEnv = env;
+    object *result = __eval(form, env);
+    gEvalEnv = NULL;
+    return result;
+}
 // Print functions
 
 void pserial (char c) {
@@ -6269,6 +6277,7 @@ void setup () {
 void repl (object *env) {
   for (;;) {
     randomSeed(micros());
+    gEvalEnv = NULL;
     gc(NULL, env);
     #if defined(printfreespace)
     pint(Freespace, pserial);
